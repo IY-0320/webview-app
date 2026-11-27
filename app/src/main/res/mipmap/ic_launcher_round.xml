@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dreamland 앱 아이콘 (초승달 + 반짝이) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFE4EA"
+        android:pathData="M6,54 A48,48 0 1 1 102,54 A48,48 0 1 1 6,54 Z" />
+    <path
+        android:fillColor="#D4879C"
+        android:pathData="M43.39,33.06 A21,21 0 1 1 28.17,66.56 A18.5,18.5 0 0 0 43.39,33.06 Z" />
+    <path
+        android:fillColor="#E6A3B4"
+        android:pathData="M73,34 Q73,41 80,41 Q73,41 73,48 Q73,41 66,41 Q73,41 73,34 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#E6A3B4"
+        android:strokeWidth="1.2"
+        android:strokeLineJoin="round"
+        android:pathData="M82,50.5 Q82,56 87.5,56 Q82,56 82,61.5 Q82,56 76.5,56 Q82,56 82,50.5 Z" />
+    <path
+        android:fillColor="#E6A3B4"
+        android:pathData="M73,64.5 Q73,69 77.5,69 Q73,69 73,73.5 Q73,69 68.5,69 Q73,69 73,64.5 Z" />
+</vector>
