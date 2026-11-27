@@ -38,7 +38,6 @@ class Saver(
 ) {
     companion object {
         private const val CHUNK = 786_432   // 3 의 배수: 조각마다 base64 를 따로 풀어도 이어 붙인 것과 같다
-        private const val MAX_BYTES = 1L shl 30   // 1GB 넘는 건 받지 않는다
         val FOLDER = Environment.DIRECTORY_DOWNLOADS + "/Dreamland"
 
         private val SCRIPT = """(function(){
@@ -110,6 +109,8 @@ class Saver(
 
     /** onCreate 에서 한 번. 통로를 지원하지 않는 아주 오래된 웹뷰면 아무것도 하지 않는다 */
     fun attach() {
+        // 저장하다 앱이 꺼져 남은 임시 파일을 지운다
+        io.execute { dir.listFiles()?.forEach { it.delete() } }
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return
         WebViewCompat.addWebMessageListener(view, "DreamSave", setOf("*")) { _, msg, origin, isMain, _ ->
             if (!isMain || !sameOrigin(origin, Uri.parse(serverUrl()))) return@addWebMessageListener
@@ -144,11 +145,14 @@ class Saver(
             "url" -> {
                 val url = o.optString("url")
                 if (sameOrigin(Uri.parse(url), Uri.parse(serverUrl()))) fetch(url, o.optString("name"))
+                // 다른 사이트의 파일은 크롬처럼 브라우저가 받게 넘긴다
+                else act.runOnUiThread {
+                    try { act.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { }
+                }
             }
             "begin" -> {
                 val name = cleanName(o.optString("name"))
                 val mime = o.optString("mime")
-                if (o.optLong("size") > MAX_BYTES) return toast("파일이 너무 커서 저장하지 못했어요")
                 io.execute {
                     runCatching {
                         val f = File.createTempFile("save", ".part", dir)

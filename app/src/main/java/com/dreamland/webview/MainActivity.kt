@@ -15,6 +15,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
+import android.print.PrintAttributes
+import android.print.PrintManager
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import android.os.SystemClock
 import android.view.View
 import android.webkit.*
@@ -219,6 +224,8 @@ class MainActivity : AppCompatActivity() {
         }
 
     private lateinit var saver: Saver
+    private lateinit var voice: Voice
+    private var popup: WebView? = null
     private lateinit var root: FrameLayout
 
     // ── 화면 ──
@@ -245,6 +252,8 @@ class MainActivity : AppCompatActivity() {
                 // 드림랜드는 http 로만 연다. 파일 올리기는 파일 선택 창(content://)을 쓰므로 폰 파일(file://) 접근은 막는다
                 allowFileAccess = false
                 mediaPlaybackRequiresUserGesture = false
+                // 드림랜드가 새 창을 열 때(일기장 "책으로 묶기" 인쇄 화면 등) 드림랜드 화면을 갈아엎지 않고 위에 따로 띄운다
+                setSupportMultipleWindows(true)
             }
             webViewClient = object : WebViewClient() {
                 // 드림랜드가 도중에 꺼지면 첫 화면으로 돌아가서 다시 깨울 수 있게 한다
@@ -256,6 +265,18 @@ class MainActivity : AppCompatActivity() {
                     showStart()
                     checkServer(auto = false)
                 }
+
+                // 드림랜드 밖의 주소(상점 · 안내 사이트 등)는 앱 안이 아니라 브라우저로 연다
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    if (!request.isForMainFrame) return false
+                    val u = request.url
+                    if (u.scheme == "blob" || u.scheme == "data" || u.scheme == "about" || onServer(u.toString())) return false
+                    if (u.scheme == "http" || u.scheme == "https" || u.scheme == "mailto")
+                        try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (e: Exception) { }
+                    return true   // 그 밖의 주소(intent: 등)는 열지 않는다
+                }
+
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail) = rendererGone()
 
                 override fun onPageFinished(view: WebView, url: String) {
                     saver.inject()
@@ -278,11 +299,22 @@ class MainActivity : AppCompatActivity() {
                     else onePicker.launch("*/*")
                     return true
                 }
+
+                override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
+                    val pop = openPopup()
+                    (resultMsg.obj as WebView.WebViewTransport).webView = pop
+                    resultMsg.sendToTarget()
+                    return true
+                }
+
+                override fun onCloseWindow(window: WebView) = closePopup()
             }
         }
 
         // 드림랜드의 내보내기 · 백업 받기 → 다운로드/Dreamland
         saver = Saver(this, dreamView) { serverUrl }.also { it.attach() }
+        // 드림랜드의 글 읽어 주기(브라우저 음성) · 말로 입력하기 → 안드로이드 음성 엔진
+        voice = Voice(this, dreamView) { serverUrl }.also { it.attach() }
 
         startView = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#0C0C0B"))
@@ -293,6 +325,8 @@ class MainActivity : AppCompatActivity() {
                 // 첫 화면은 앱 안의 파일만 연다
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) =
                     !request.url.toString().startsWith("file:///android_asset/")
+
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail) = rendererGone()
             }
         }
 
@@ -328,6 +362,8 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
+                    // 드림랜드가 연 새 창: 그 안에서 뒤로, 더 갈 데가 없으면 닫기
+                    popup != null -> popup!!.let { if (it.canGoBack()) it.goBack() else closePopup() }
                     // 드림랜드 안의 이전 화면으로. 그 앞이 드림랜드가 아니면(빈 페이지 등) 첫 화면으로 간다
                     dreamView.visibility == View.VISIBLE && dreamView.canGoBack() &&
                         onServer(dreamView.copyBackForwardList().let { it.getItemAtIndex(it.currentIndex - 1)?.url }) ->
@@ -375,11 +411,96 @@ class MainActivity : AppCompatActivity() {
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
         saver.shutdown()
+        voice.shutdown()
+        closePopup()
         runCatching { unregisterReceiver(resultReceiver) }
         super.onDestroy()
     }
 
+    /**
+     * 웹 화면을 그리는 프로세스가 죽었을 때 (메모리가 모자라 안드로이드가 끄는 등).
+     * true 를 돌려주지 않으면 앱 전체가 꺼진다. 두 화면이 같은 프로세스를 쓰므로 둘 다 못 쓰게 되니
+     * 화면을 통째로 다시 만든다 → 첫 화면부터 다시 (서버가 깨어 있으면 바로 드림랜드로 들어감)
+     */
+    private var recreating = false
+
+    private fun rendererGone(): Boolean {
+        if (!recreating) {
+            recreating = true
+            main.post {
+                closePopup()
+                (startView.parent as? FrameLayout)?.removeAllViews()
+                startView.destroy()
+                dreamView.destroy()
+                recreate()
+            }
+        }
+        return true
+    }
+
+    // ── 드림랜드가 연 새 창 ──
+
+    /**
+     * 크롬이라면 새 탭이 열릴 자리. 드림랜드 주소 · blob: 페이지(인쇄용 책 등)는 드림랜드 위에 띄우고,
+     * 다른 사이트면 브라우저로 넘긴다. 새 창의 print() 는 안드로이드 인쇄(PDF 저장 포함)로 잇는다.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun openPopup(): WebView {
+        closePopup()
+        val pop = WebView(this)
+        popup = pop
+        pop.setBackgroundColor(Color.WHITE)
+        pop.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            allowFileAccess = false
+            mediaPlaybackRequiresUserGesture = false
+        }
+        fun outside(u: Uri) = (u.scheme == "http" || u.scheme == "https") && !onServer(u.toString())
+        fun toBrowser(u: Uri) {
+            try { startActivity(Intent(Intent.ACTION_VIEW, u)) } catch (e: Exception) { }
+            closePopup()
+        }
+        pop.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val u = request.url
+                if (outside(u)) { toBrowser(u); return true }
+                return u.scheme != "http" && u.scheme != "https" && u.scheme != "blob" && u.scheme != "data" && u.scheme != "about"
+            }
+            // 처음 주소는 shouldOverrideUrlLoading 을 거치지 않는 일이 있어 여기서도 본다
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                val u = Uri.parse(url)
+                if (outside(u)) { view.stopLoading(); toBrowser(u) }
+            }
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail) = rendererGone()
+        }
+        pop.webChromeClient = object : WebChromeClient() {
+            override fun onCloseWindow(window: WebView) = closePopup()
+        }
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addWebMessageListener(pop, "DreamPrint", setOf("*")) { _, _, _, _, _ ->
+                val pm = getSystemService(Context.PRINT_SERVICE) as PrintManager
+                pm.print("Dreamland", pop.createPrintDocumentAdapter("Dreamland"), PrintAttributes.Builder().build())
+            }
+            WebViewCompat.addDocumentStartJavaScript(pop,
+                "window.print = function(){ try { DreamPrint.postMessage('print'); } catch (e) {} };", setOf("*"))
+        }
+        val lp = FrameLayout.LayoutParams(-1, -1)
+        lp.topMargin = (dreamView.layoutParams as FrameLayout.LayoutParams).topMargin
+        root.addView(pop, root.indexOfChild(dreamView) + 1, lp)
+        return pop
+    }
+
+    private fun closePopup() {
+        val pop = popup ?: return
+        popup = null
+        root.removeView(pop)
+        pop.destroy()
+    }
+
     private fun showStart() {
+        closePopup()
         startView.visibility = View.VISIBLE
         dreamView.visibility = View.GONE
         startChrome(true)
