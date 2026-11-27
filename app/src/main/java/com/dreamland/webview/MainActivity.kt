@@ -1,7 +1,10 @@
 package com.dreamland.webview
 
 import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.ClipData
+import android.content.IntentFilter
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -120,6 +123,16 @@ class MainActivity : AppCompatActivity() {
     private var sleeping = false
     private var sleepStartedAt = 0L
     private var dreamLoadedUrl: String? = null
+    private var clearHistoryWhenLoaded = false
+
+    /** 이 주소가 지금 설정한 드림랜드 서버의 페이지인지 */
+    private fun onServer(u: String?): Boolean {
+        if (u == null) return false
+        val a = Uri.parse(u)
+        val b = Uri.parse(serverUrl)
+        fun port(x: Uri) = if (x.port > 0) x.port else if (x.scheme == "https") 443 else 80
+        return a.scheme.equals(b.scheme, true) && a.host.equals(b.host, true) && port(a) == port(b)
+    }
     private var wakeAfterPermission = false
     private var lastState: JSONObject? = null
     private var insetsJs: String? = null
@@ -192,11 +205,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    // 드림랜드가 한 개만 고르라고 했으면 한 개, 여러 개면 여러 개.
+    // 종류(accept)로는 거르지 않는다: 폰마다 json · zip 을 다르게 불러서 못 고르는 파일이 생긴다 (드림랜드가 받은 뒤 다시 거른다)
     private val filePicker =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
             fileCallback?.onReceiveValue(uris.toTypedArray())
             fileCallback = null
         }
+    private val onePicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            fileCallback?.onReceiveValue(uri?.let { arrayOf(it) } ?: emptyArray())
+            fileCallback = null
+        }
+
+    private lateinit var saver: Saver
+    private lateinit var root: FrameLayout
 
     // ── 화면 ──
 
@@ -204,6 +227,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         migrateOldUrl()
+        ContextCompat.registerReceiver(this, resultReceiver, IntentFilter(resultAction), ContextCompat.RECEIVER_NOT_EXPORTED)
         // 디버그 빌드에서만 크롬 개발자 도구로 웹뷰를 들여다볼 수 있게 한다 (배포판은 꺼짐)
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0)
             WebView.setWebContentsDebuggingEnabled(true)
@@ -232,6 +256,17 @@ class MainActivity : AppCompatActivity() {
                     showStart()
                     checkServer(auto = false)
                 }
+
+                override fun onPageFinished(view: WebView, url: String) {
+                    saver.inject()
+                    // 새로 들어간 드림랜드가 다 뜬 뒤에 지난 기록을 지운다.
+                    // (불러오기 직후에 지우면 아직 앞 페이지(about:blank)가 현재라 그게 기록에 남아,
+                    //  뒤로 가면 하얀 화면이 나왔다)
+                    if (clearHistoryWhenLoaded && onServer(url)) {
+                        clearHistoryWhenLoaded = false
+                        view.clearHistory()
+                    }
+                }
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onShowFileChooser(
@@ -239,11 +274,15 @@ class MainActivity : AppCompatActivity() {
                 ): Boolean {
                     fileCallback?.onReceiveValue(null)
                     fileCallback = callback
-                    filePicker.launch("*/*")
+                    if (params.mode == FileChooserParams.MODE_OPEN_MULTIPLE) filePicker.launch("*/*")
+                    else onePicker.launch("*/*")
                     return true
                 }
             }
         }
+
+        // 드림랜드의 내보내기 · 백업 받기 → 다운로드/Dreamland
+        saver = Saver(this, dreamView) { serverUrl }.also { it.attach() }
 
         startView = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#0C0C0B"))
@@ -257,10 +296,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val root = FrameLayout(this)
+        root = FrameLayout(this)
         root.addView(dreamView, FrameLayout.LayoutParams(-1, -1))
         root.addView(startView, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
+
+        // 드림랜드 화면은 상태 표시줄 밑에서 시작한다. 드림랜드는 아래쪽 여백(safe-area)은 스스로 두지만
+        // 위쪽은 페이지마다 달라서 글자가 시계 · 배터리와 겹친다. 비는 띠는 root 바탕색(= 화면 맨 위 색)으로 칠한다
+        ViewCompat.setOnApplyWindowInsetsListener(dreamView) { v, insets ->
+            val top = insets.getInsets(
+                WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
+            ).top
+            val lp = v.layoutParams as FrameLayout.LayoutParams
+            if (lp.topMargin != top) { lp.topMargin = top; v.layoutParams = lp }
+            // 나머지(아래 막대 높이)는 웹뷰에 그대로 넘겨서 드림랜드의 safe-area 여백이 계속 맞게 한다
+            ViewCompat.onApplyWindowInsets(v, insets.inset(0, top, 0, 0))
+        }
         startChrome(true)
 
         // 상태 표시줄 · 아래 막대 높이를 첫 화면에 알려서 버튼이 그 밑에 숨지 않게 한다
@@ -277,7 +328,10 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
-                    dreamView.visibility == View.VISIBLE && dreamView.canGoBack() -> dreamView.goBack()
+                    // 드림랜드 안의 이전 화면으로. 그 앞이 드림랜드가 아니면(빈 페이지 등) 첫 화면으로 간다
+                    dreamView.visibility == View.VISIBLE && dreamView.canGoBack() &&
+                        onServer(dreamView.copyBackForwardList().let { it.getItemAtIndex(it.currentIndex - 1)?.url }) ->
+                        dreamView.goBack()
                     // 드림랜드의 맨 앞 화면에서 뒤로 → 첫 화면(꿈속으로)
                     dreamView.visibility == View.VISIBLE -> { showStart(); checkServer(auto = false) }
                     // 첫 화면: 열린 시트가 있으면 닫고, 없으면 앱을 나간다
@@ -320,6 +374,8 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
+        saver.shutdown()
+        runCatching { unregisterReceiver(resultReceiver) }
         super.onDestroy()
     }
 
@@ -374,6 +430,7 @@ class MainActivity : AppCompatActivity() {
         window.navigationBarColor = bottom
         window.statusBarColor = top   // Android 14 이하: 상태 표시줄이 따로 있어서 그 색도 맞춘다 (15 는 무시됨)
         window.decorView.setBackgroundColor(bottom)
+        root.setBackgroundColor(top)   // 드림랜드 화면 위 · 상태 표시줄 자리의 띠
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightNavigationBars = isLight(bottom)
             isAppearanceLightStatusBars = isLight(top)
@@ -403,11 +460,12 @@ class MainActivity : AppCompatActivity() {
     private fun enterDream(key: String? = null) {
         val url = serverUrl
         js("dl.entering && dl.entering()")
-        if (dreamLoadedUrl != url) {
+        // 지금 드림랜드 화면이 드림랜드가 아니면(빈 페이지 · 오류 페이지) 새로 불러온다
+        if (dreamLoadedUrl != url || !onServer(dreamView.url)) {
+            clearHistoryWhenLoaded = true
             dreamView.loadUrl(
                 if (key != null) "$url/?key=" + URLEncoder.encode(key, "UTF-8") else url
             )
-            dreamView.clearHistory()
             dreamLoadedUrl = url
         }
         // 짧게 들어가는 느낌을 준 뒤 드림랜드를 보여 준다
@@ -549,8 +607,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ── 터묵스의 답 받기 ──
+    // 뒤에서(background) 돈 명령의 출력과 끝난 번호를 터묵스가 PendingIntent 로 돌려준다.
+    // 받는 곳은 이 앱 안에만 열려 있다 (PendingIntent 는 이 앱 이름으로 보내지므로 밖에서는 못 보냄)
+
+    private val resultAction by lazy { "$packageName.TERMUX_RESULT" }
+    private var nextResultId = 1
+    private val resultCallbacks = HashMap<Int, (Int, String, String) -> Unit>()
+
+    private val resultReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            val cb = resultCallbacks.remove(i.getIntExtra("dl_id", -1)) ?: return
+            val b = i.getBundleExtra("result")
+            val err = b?.getInt("err", -1) ?: -1
+            // err: -1 이면 터묵스가 명령을 제대로 돌렸다. 그 밖이면 터묵스가 실행을 거절한 것 (외부 앱 허용 안 됨 등)
+            if (b == null || err != -1) cb(-100, "", b?.getString("errmsg") ?: "")
+            else cb(b.getInt("exitCode", -1), b.getString("stdout") ?: "", b.getString("stderr") ?: "")
+        }
+    }
+
+    /** 뒤에서 명령을 돌리고, 끝나면 onDone(끝 번호, 출력, 오류 출력). 터묵스가 답이 없으면 timeoutMs 뒤에 -101 */
+    private fun runForResult(script: String, timeoutMs: Long, onDone: (Int, String, String) -> Unit): String? {
+        val id = nextResultId++
+        resultCallbacks[id] = onDone
+        val err = runInTermux(script, background = true, resultId = id)
+        if (err != null) { resultCallbacks.remove(id); return err }
+        main.postDelayed({ resultCallbacks.remove(id)?.invoke(-101, "", "") }, timeoutMs)
+        return null
+    }
+
     /** 터묵스에 명령 보내기. background = true 면 창(세션) 없이 조용히 돈다 */
-    private fun runInTermux(script: String, background: Boolean): String? {
+    private fun runInTermux(script: String, background: Boolean, resultId: Int? = null): String? {
         if (!termuxInstalled()) return "termux-missing"
         val intent = Intent("com.termux.RUN_COMMAND").apply {
             setClassName(TERMUX_PKG, "com.termux.app.RunCommandService")
@@ -562,6 +649,14 @@ class MainActivity : AppCompatActivity() {
             // (2 "화면은 열지 않음" 은 터묵스 0.119 에서 명령이 아예 실행되지 않아서, 조용히 켤 때는 background 로 보낸다)
             if (!background) putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0")
             putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Dreamland")
+            if (resultId != null) {
+                val back = Intent(resultAction).setPackage(packageName).putExtra("dl_id", resultId)
+                // 터묵스가 결과를 채워 넣어야 해서 MUTABLE (받는 곳을 이 앱으로 못 박아 두었다)
+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
+                putExtra("com.termux.RUN_COMMAND_PENDING_INTENT",
+                    PendingIntent.getBroadcast(this@MainActivity, resultId, back, flags))
+            }
         }
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
@@ -708,12 +803,110 @@ class MainActivity : AppCompatActivity() {
                 if (!sleeping) return@post
                 val elapsed = SystemClock.elapsedRealtime() - sleepStartedAt
                 when {
+                    r == Probe.DOWN && wakeAfterSleep -> {
+                        // 업데이트 뒤: 새 버전으로 다시 켠다
+                        sleeping = false; wakeAfterSleep = false
+                        wakeTermux()
+                    }
                     r == Probe.DOWN -> { sleeping = false; pushState("asleep", "slept" to true) }
-                    elapsed > SLEEP_TIMEOUT_MS -> { sleeping = false; pushState("error", "code" to "stop") }
+                    elapsed > SLEEP_TIMEOUT_MS -> { sleeping = false; wakeAfterSleep = false; pushState("error", "code" to "stop") }
                     else -> main.postDelayed(::pollSleep, POLL_MS)
                 }
             }
         }
+    }
+
+    // ── 업데이트 (드림랜드 README: git pull) ──
+    // 드림랜드는 만든 결과(dist)까지 저장소에 들어 있어서 git pull 만 하면 된다.
+    // 켜져 있던 서버는 옛 파일을 들고 있으므로, 받은 뒤 한 번 껐다가 다시 켠다.
+
+    private var updating = false
+    private var wakeAfterSleep = false
+
+    private fun gitPrelude(): String {
+        val f = folder.trim().ifEmpty { DEFAULT_FOLDER }
+        return buildString {
+            appendLine("export GIT_TERMINAL_PROMPT=0")
+            appendLine("cd ${folderExpr(f)} 2>/dev/null || exit 3")
+            appendLine("command -v git >/dev/null || exit 4")
+            appendLine("[ -d .git ] || exit 5")
+        }
+    }
+
+    private fun updateError(code: Int, stderr: String): String = when (code) {
+        3 -> "드림랜드 폴더를 찾지 못했어요. 설정의 드림랜드 폴더를 확인해 주세요."
+        4 -> "터묵스에 git 이 없어요. 터묵스에서 pkg install git 을 해 주세요."
+        5 -> "git clone 으로 받은 폴더가 아니라서 자동 업데이트를 할 수 없어요. 새 ZIP 을 받아 data 폴더만 남기고 덮어써 주세요."
+        6 -> "업데이트를 확인하지 못했어요. 인터넷 연결을 확인해 주세요."
+        7 -> "업데이트를 받지 못했어요. 드림랜드 폴더의 파일을 직접 고쳤다면 그 때문일 수 있어요." +
+            (stderr.lineSequence().firstOrNull { it.isNotBlank() }?.let { "\n($it)" } ?: "")
+        -100 -> "터묵스가 부탁을 거절했어요. 설정의 '외부 앱 허용' 을 확인해 주세요."
+        -101 -> "터묵스가 답하지 않았어요. 잠시 뒤 다시 해 주세요."
+        else -> "알 수 없는 문제가 생겼어요. (코드 $code)"
+    }
+
+    private fun pushUpdate(phase: String, vararg extra: Pair<String, Any>) {
+        val o = JSONObject().put("phase", phase)
+        extra.forEach { (k, v) -> o.put(k, v) }
+        js("dl.onUpdate && dl.onUpdate($o)")
+    }
+
+    private fun updateBlocked(): Boolean {
+        if (!isLocal) { pushUpdate("error", "msg" to "다른 기기의 드림랜드는 그 기기에서 업데이트해 주세요."); return true }
+        if (!termuxInstalled()) { pushUpdate("error", "msg" to "터묵스가 설치돼 있지 않아요."); return true }
+        if (!hasTermuxPermission()) { pushUpdate("error", "msg" to "터묵스 실행 권한이 필요해요."); return true }
+        return updating || waking || sleeping
+    }
+
+    /** 새 버전이 있는지만 본다 (git fetch). 받지는 않는다 */
+    private fun checkUpdate() {
+        if (updateBlocked()) return
+        updating = true
+        pushUpdate("checking")
+        val script = gitPrelude() + """
+            git fetch -q || exit 6
+            git rev-list --count HEAD..@{u} 2>/dev/null || echo 0
+            git log -1 --format=%cs @{u} 2>/dev/null || echo
+            git log -1 --format=%cs HEAD
+        """.trimIndent()
+        runForResult(script, 90_000) { code, out, err ->
+            updating = false
+            if (code != 0) return@runForResult pushUpdate("error", "msg" to updateError(code, err))
+            val lines = out.lines().map { it.trim() }
+            val count = lines.getOrNull(0)?.toIntOrNull() ?: 0
+            pushUpdate(if (count > 0) "available" else "latest",
+                "count" to count, "remote" to (lines.getOrNull(1) ?: ""), "local" to (lines.getOrNull(2) ?: ""))
+        }?.let { updating = false; pushUpdate("error", "msg" to updateError(-100, "")) }
+    }
+
+    /** git pull 을 하고, 켜져 있었으면 껐다가 다시 켠다 */
+    private fun applyUpdate() {
+        if (updateBlocked()) return
+        updating = true
+        pushUpdate("pulling")
+        val url = serverUrl
+        val script = gitPrelude() + """
+            git pull --ff-only -q || exit 7
+            git log -1 --format=%cs HEAD
+        """.trimIndent()
+        runForResult(script, 180_000) { code, out, err ->
+            updating = false
+            if (code != 0) return@runForResult pushUpdate("error", "msg" to updateError(code, err))
+            val date = out.lines().firstOrNull { it.isNotBlank() }?.trim() ?: ""
+            io.execute {
+                val up = probe(url) == Probe.UP
+                main.post {
+                    dreamLoadedUrl = null   // 다음에 들어갈 때 새 화면을 불러온다
+                    if (up) {
+                        pushUpdate("restarting", "local" to date)
+                        wakeAfterSleep = true
+                        sleepDream()
+                    } else {
+                        pushUpdate("done", "local" to date)
+                    }
+                }
+            }
+        }?.let { updating = false; pushUpdate("error", "msg" to updateError(-100, "")) }
     }
 
     // ── 접속 키 (다른 기기에서 --lan 으로 켠 드림랜드) ──
@@ -857,6 +1050,12 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun install() = main.post { installDreamland() }.let { }
+
+        @JavascriptInterface
+        fun checkUpdate() = main.post { this@MainActivity.checkUpdate() }.let { }
+
+        @JavascriptInterface
+        fun applyUpdate() = main.post { this@MainActivity.applyUpdate() }.let { }
 
         /** 설치 안내 02 "했어요" 표시 (첫 화면은 웹 저장소를 쓰지 않아서 앱 쪽에 저장한다) */
         @JavascriptInterface

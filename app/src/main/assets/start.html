@@ -140,6 +140,8 @@ body.entering .stage { animation: dive .7s var(--out) forwards; }
 .btn.p { background: var(--s-ink); border-color: var(--s-ink); color: var(--s-paper); }
 .btn.p:active { filter: brightness(1.3); }
 .btn.sm { height: 36px; padding: 0 12px; font-size: 13px; }
+.btn:disabled { opacity: .5; }
+.ds.bad { color: #b4553f; }
 .code { margin: 0; padding: 12px 14px; border-radius: 8px; background: #1a1712; color: #ece7da; font: 400 12px/1.7 var(--mono); white-space: pre-wrap; word-break: break-all; }
 .acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .sh-ft { display: flex; gap: 8px; padding: 14px 26px calc(var(--bottom) + 16px); border-top: 1px solid var(--s-line); }
@@ -360,6 +362,14 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
       <div class="row col">
         <div class="tx"><div class="nm">드림랜드 폴더</div><div class="ds">터묵스에서 <code>git clone</code> 으로 받은 폴더</div></div>
         <input class="fld" id="folder" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="~/dreamland">
+      </div>
+    </div>
+
+    <div class="sec" id="upSec">
+      <h3>UPDATE</h3>
+      <div class="row">
+        <div class="tx"><div class="nm">드림랜드 업데이트</div><div class="ds" id="upDs"></div></div>
+        <button class="btn sm" id="upBtn">확인하기</button>
       </div>
     </div>
 
@@ -619,6 +629,7 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
     $('folder').value = cfg.folder || ''; $('port').value = cfg.port || ''; $('host').value = cfg.host || '';
     $('port').classList.remove('bad');
     fillLink();
+    fillUpdate();
   }
   function fillLink() {
     const i = $('stInstalled'), p = $('stPerm');
@@ -629,6 +640,38 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   }
   window.dl.onPermission = granted => { cfg.permission = granted; fillLink(); toast(granted ? '터묵스 실행 권한을 받았어요' : '권한이 거절됐어요'); };
   $('askPerm').addEventListener('click', () => call('requestPermission'));
+
+  // ── 업데이트 (git pull) ──
+  const UP_HINT = 'GitHub 에 새 버전이 있는지 보고 받아요 (<code>git pull</code>). 켜져 있으면 잠깐 껐다가 새 버전으로 다시 켜요.';
+  let up = { phase: 'idle' };
+  function fillUpdate() {
+    $('upSec').hidden = cfg.local === false;
+    const b = $('upBtn'), d = $('upDs'), p = up.phase;
+    const busy = ['checking', 'pulling', 'restarting'].includes(p);
+    b.disabled = busy;
+    b.classList.toggle('p', p === 'available');
+    b.textContent = ({ checking: '확인 중…', pulling: '받는 중…', restarting: '켜는 중…', available: '업데이트' })[p] || (p === 'idle' ? '확인하기' : '다시 확인');
+    d.classList.toggle('bad', p === 'error');
+    d.innerHTML = ({
+      checking: 'GitHub 에 새 버전이 있는지 보는 중…',
+      latest: `지금이 최신이에요${up.local ? ' · ' + up.local : ''}`,
+      available: `새 버전이 있어요 · 바뀐 것 ${up.count}개${up.remote ? ' · ' + up.remote : ''}`,
+      pulling: '새 버전을 받는 중…',
+      restarting: '받았어요. 새 버전으로 다시 켜는 중…',
+      done: `업데이트했어요${up.local ? ' · ' + up.local : ''}. 다음에 들어갈 때 새 버전으로 켜져요.`,
+      error: esc(up.msg || '업데이트하지 못했어요.').replace(/\n/g, '<br>'),
+    })[p] || UP_HINT;
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  window.dl.onUpdate = u => {
+    up = u; fillUpdate();
+    if (u.phase === 'latest') toast('지금이 최신이에요');
+    if (u.phase === 'done') toast('업데이트했어요');
+  };
+  $('upBtn').addEventListener('click', () => {
+    if (!N) return;
+    call(up.phase === 'available' ? 'applyUpdate' : 'checkUpdate');
+  });
   $('copyCmd').addEventListener('click', () => { call('copySetup'); toast('명령어를 복사했어요. 터묵스에 붙여 넣어 주세요'); });
   $('openTermux').addEventListener('click', () => { if (call('openTermux') === false) toast('터묵스를 열 수 없어요'); });
   $('port').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); e.target.classList.remove('bad'); });

@@ -52,4 +52,6 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
+    // 드림랜드 화면에서 "내보내기" 파일을 받아 저장하는 통로 (addWebMessageListener)
+    implementation("androidx.webkit:webkit:1.12.1")
 }
