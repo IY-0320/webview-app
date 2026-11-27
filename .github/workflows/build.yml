@@ -1,0 +1,43 @@
+name: Build APK
+
+on:
+  push:
+    tags: ["v*"]        # v1.0 같은 태그를 올리면 빌드 + 릴리스
+  workflow_dispatch:     # Actions 탭에서 수동 실행도 가능
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk dreamland.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dreamland-apk
+          path: dreamland.apk
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Build {0}', github.run_number) }}
+          files: dreamland.apk
