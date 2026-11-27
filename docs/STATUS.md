@@ -6,8 +6,33 @@
 
 ## 한 줄 요약
 
-드림랜드(터묵스에서 도는 웹 서버)를 띄우는 안드로이드 웹뷰 앱. GitHub Actions 로 서명된 APK 를 빌드해 Releases 에 배포 중.
-처음엔 클라우드 세션 + GitHub 만으로 작업했고, 지금은 노트북의 Android Studio 에서도 빌드됨.
+드림랜드(터묵스에서 도는 웹 서버)를 켜고 · 끄고 · 처음 설치까지 해 주는 안드로이드 웹뷰 앱 **Dreamland**.
+GitHub Actions 로 서명된 APK 를 빌드해 Releases 에 배포. 노트북(Windows)의 Android Studio 에서 개발 · 폰은 adb 로 시험.
+
+## 지금 상태 (한눈에)
+
+- **최신 릴리스: [v1.0.0](https://github.com/IY-0320/webview-app/releases/tag/v1.0.0)** (Actions 빌드 3번, `versionCode` 3). 저장소는 **공개**
+  - 잠깐 v1.1.0 으로 올렸다가 버전을 1.0.0 으로 바꾸기로 해서 v1.1.0 릴리스 · 태그는 지움
+- 코드: `main` 의 `0f3930e` 까지 올라가 있음
+- 폰 두 대 (둘 다 지금 **디버그 서명** 앱이 깔려 있음 → 배포판을 깔려면 먼저 지워야 하고, 지우면 앱 안의 드림랜드 데이터도 지워짐)
+  - **갤럭시 S22 울트라** (Android 15, USB) — 실제로 쓰는 폰. 드림랜드 · 실리태번(:8000) 이 같은 터묵스에 있음
+  - **갤럭시 A23 공기계** (Android 14, 무선 디버깅) — 처음 설치 흐름을 처음부터 끝까지 확인한 폰
+- **가장 먼저 할 일: 파일 내보내기(다운로드) 지원.** 드림랜드의 백업 내보내기 등이 앱 안에서 안 됨 → 이게 돼야 S22 의 데이터를 백업하고 배포판으로 갈아탈 수 있음 (아래 "다음에 할 일")
+
+### 다음 세션에서 이어서 하는 법
+
+```sh
+# 빌드 (Gradle JDK 는 21 — Android Studio 기본 JDK 25 로는 안 됨)
+JAVA_HOME="C:/Users/천보람/.jdks/jbr-21.0.11" ./gradlew assembleDebug
+# 폰에 설치 (기기가 여러 대면 -s 로 고르기. adb devices -l 로 확인)
+"$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe" -s <기기> install -r app/build/outputs/apk/debug/app-debug.apk
+# 릴리스: v 로 시작하는 태그를 올리면 Actions 가 빌드해서 Releases 에 올림
+git tag -a v1.0.1 -m "..." && git push origin v1.0.1
+```
+
+- 공기계 무선 디버깅: 폰의 개발자 옵션 → 무선 디버깅 화면에 나온 주소로 `adb connect <IP:포트>` (페어링은 이미 함. 포트는 껐다 켜면 바뀜)
+- 첫 화면 속을 들여다볼 때: 디버그 빌드는 WebView 개발자 도구가 켜져 있음 →
+  `adb forward tcp:9333 localabstract:webview_devtools_remote_<앱 pid>` 후 `http://127.0.0.1:9333/json` 의 웹소켓으로 `Runtime.evaluate`
 
 ## 관련 저장소
 
@@ -22,7 +47,7 @@
 1. 웹뷰 앱 기본 구조 (Kotlin, minSdk 24 / targetSdk 35)
    - 파일 업로드(캐릭터 카드 등), 뒤로가기, 서버가 꺼져 있을 때 안내 화면
 2. 서버 주소를 코드에 박지 않고 **폰마다 저장** (SharedPreferences `dreamland` / `server_url`)
-   - 바꾸는 곳: 연결 실패 화면의 "주소 변경", 앱 아이콘 길게 누르기 → "서버 주소 변경"
+   - (지금은) 첫 화면의 톱니바퀴 설정 또는 앱 아이콘 길게 누르기 → "설정" 에서 주소 · 포트를 바꿈 (8번)
 3. **고정 서명 키**로 배포용 APK 서명 → 업데이트가 덮어 설치됨
    - 키: `dreamland-release.jks`, alias `dreamland` (저장소에 없음. 사용자가 따로 보관)
    - GitHub Secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD` 등록 완료
@@ -75,10 +100,10 @@
      - "드림랜드를 이미 이용하고 있나요? 네" → 꿈속으로 화면
      - "드림랜드가 처음인가요? 네" → 설치 안내 시트 "드림랜드 들이기"
    - 설치 안내 4단계: 01 터묵스 설치(자동 감지, F-Droid · GitHub 링크) / 02 외부 앱 허용 명령 붙여 넣기(앱이 알 수 없어 "했어요"를 직접 표시, 이 기기에만 기억) / 03 실행 권한(자동 감지) / 04 버튼 하나로 설치하고 들어가기
-   - 04 는 드림랜드 README 의 Termux 순서 그대로: `pkg update` → `pkg install git nodejs-lts` → `git clone …DreamLand.git` (폴더가 이미 있으면 건너뜀) → 바로 켜기. 언제나 터묵스 창에서 실행해 진행 상황이 보임. 앱은 최대 20분 기다리다 켜지면 들어감
+   - 04 는 드림랜드 README 의 Termux 순서를 따름: `pkg upgrade`(README 는 `pkg update` — 17번 참고) → `pkg install git nodejs-lts` → `git clone …DreamLand.git` (폴더가 이미 있으면 건너뜀) → 바로 켜기. 언제나 터묵스 창에서 실행해 진행 상황이 보임. 앱은 최대 20분 기다리다 켜지면 들어감
    - 이미 켜져 있으면 설치 없이 바로 들어감 (폰에서 확인)
    - 저장값 `onboarded`. 이 판 전부터 쓰던 사람(설정이 이미 있음)은 자동으로 건너뜀. 설정 > GUIDE > "처음 안내 다시 보기"로 다시 열 수 있음
-   - **실제로 처음부터 내려받는 과정은 폰에서 돌려 보지 않음** (`pkg update` 가 지금 쓰는 터묵스 패키지를 업그레이드하기 때문). 앱이 만드는 스크립트와 같은 내용을 `bash -n` 으로 문법만 확인함
+   - 처음부터 끝까지 실제 설치는 공기계에서 확인함 (17번)
    - 디버그 빌드에서만 WebView 개발자 도구가 켜짐 (`FLAG_DEBUGGABLE`). 배포판에는 영향 없음
    - 한글 줄바꿈을 단어 단위로 (`word-break: keep-all`)
 
@@ -104,24 +129,32 @@
    - **공기계에서 처음부터 끝까지 확인:** 설치 누름 → 터묵스 저절로 열림 → pkg upgrade · 설치 · 실행 → 52초 뒤 4173 열림 → 앱이 앞으로 돌아와 드림랜드 표시, `onboarded=true`
      (git clone 은 앞선 시도에서 이미 받아 둬서 건너뜀. 완전히 새 폰이면 내려받기 시간이 더 걸림)
    - Android 14 이하는 상태 표시줄이 따로라 그 색도 드림랜드 맨 위 색에 맞춤 (`statusBarColor`)
+18. **보안 점검 + 릴리스 v1.0.0** (2026-11-27)
+   - 점검: 앱 기능 다리(`Dream`)는 첫 화면(앱 안 파일)에만, 첫 화면은 `file:///android_asset/` 밖으로 못 나감 / 터묵스 명령은 정해진 틀에 폴더(작은따옴표로 감쌈) · 포트(숫자 확인)만 넣음 /
+     링크는 정해 둔 3곳만 (`GUIDE_URLS`) / 개발자 도구는 디버그 빌드만 (배포판 APK 에 debuggable 없음 확인) / 권한은 인터넷 · 터묵스 실행뿐
+   - 고친 것: 드림랜드 WebView 의 `allowFileAccess` 를 끔
+     - 이건 WebView 가 `file:///sdcard/...` 같은 **폰 경로를 주소로 직접 여는 것**만 막음. 드림랜드는 http 로만 열리고,
+       파일 불러오기(png · json · zip)는 파일 선택 창이 주는 `content://` 를 쓰므로 영향 없음 (불러오기를 실제로 눌러 본 시험은 아직)
+   - 그대로 둔 것: `allowBackup="true"`(앱 데이터가 구글 백업에 포함될 수 있음), `usesCleartextTraffic`(127.0.0.1 · 같은 와이파이의 http 접속에 필요)
+   - 알고 쓰는 것: 터묵스 `allow-external-apps=true` 는 "터묵스 실행 권한"을 허락받은 앱이면 터묵스에 명령을 보낼 수 있게 함 (권한은 앱마다 따로 허락)
 
 ## 다음에 할 일 (후보)
 
-- [ ] 처음 설치 흐름을 새 기기(또는 터묵스를 새로 깐 상태)에서 끝까지 해 보기 — 공기계(A23)에 앱 설치 완료, 터묵스 설치부터 진행 예정
-- [x] 터묵스로 깨우기 실제 확인
+- [ ] **파일 내보내기(다운로드) 지원** — 가장 먼저
+  - 드림랜드는 백업 등을 `URL.createObjectURL(blob)` + `<a download>` 로 내보냄 (`src/datafolder/Panel.tsx` 등). 지금 앱은 `DownloadListener` 가 없어서 아무 일도 안 일어남
+  - `blob:` 주소는 WebView 밖에서 못 받으므로, 페이지 안에서 blob 을 읽어(JS) 앱에 넘기고 저장(다운로드 폴더 또는 "저장할 곳 고르기")하는 방식이 필요
+  - 이게 돼야 S22 의 드림랜드 데이터를 백업 → 디버그 앱 지우기 → 배포판 설치 → 복원 가능 (크롬으로 같은 주소를 열어도 저장 공간이 달라 앱의 데이터는 안 보임)
+- [ ] 파일 불러오기(png · json · zip)를 폰에서 실제로 눌러 확인
+- [ ] 드림랜드를 어두운 테마로 바꿨을 때 시스템 막대 색 확인
 - [ ] 드림랜드 화면이 상태 표시줄 밑까지 그려짐 (Android 15 edge-to-edge). 위쪽 여백 처리 검토
-
-- [x] 포트 수정판 폰에서 확인: 디버그 APK 를 adb 로 갤럭시 S22 울트라에 설치 → 드림랜드 첫 화면 정상 표시 (2026-11-27)
-  - 기존 배포판 앱은 지웠음(데이터도 초기화됨). 지금 폰에는 **디버그 서명** 앱이 깔려 있어서, 나중에 Releases 의 배포판을 깔려면 다시 지워야 함
-- [ ] 포트 수정판을 Actions 로 배포용 빌드해서 Releases 에 올리기
-- [x] 앱 아이콘: 연핑크 배경 + 장밋빛 초승달 + 반짝이 3개 (벡터 적응형 아이콘, 테마 아이콘용 monochrome 포함). 앱 이름 `Dreamland` 로 변경
-  - 파일: `res/drawable/ic_launcher_foreground.xml`, `ic_launcher_monochrome.xml`, `res/mipmap-anydpi-v26/`, `res/mipmap/` (Android 7 용), `res/values/ic_launcher_background.xml`
-  - 색: 배경 `#FFE4EA`, 달 `#D4879C`, 반짝이 `#E6A3B4`
-  - [ ] 폰 홈 화면에서 실제 모양 확인 (빌드·설치까지는 됨)
-- [x] Android Studio 에서 열어 로컬 빌드 확인
 - [ ] (선택) Gradle/AGP 를 올려서 Java 25 에서도 빌드되게 하기. 지금은 JDK 21 지정으로 충분
-- [ ] 다른 사람에게 배포: 저장소가 비공개면 Releases 를 못 보니 공개로 바꾸거나 APK 를 따로 전달
-- [ ] 필요하면: 화면 회전·키보드 처리 점검, 다운로드(내보내기) 지원, 당겨서 새로고침
+- [ ] 필요하면: 화면 회전 · 키보드 처리 점검, 당겨서 새로고침
+
+끝난 것 (참고):
+- [x] 터묵스로 깨우기 · 일어나기 · 처음 설치를 폰에서 확인 (S22, A23)
+- [x] 앱 아이콘(연핑크 배경 `#FFE4EA` · 달 `#D4879C` · 반짝이 `#E6A3B4`, 벡터 적응형 + monochrome), 앱 이름 `Dreamland`. 홈 화면에서 확인함
+- [x] Android Studio 로컬 빌드, Actions 배포 빌드 (v1.0.0)
+- [x] 다른 사람에게 배포: 저장소가 공개라 Releases 에서 누구나 받을 수 있음
 
 ## 노트북(Windows) 개발 환경
 
