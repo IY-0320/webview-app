@@ -17,8 +17,12 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        // 처음 설치했을 때 쓰는 기본 주소 (터묵스에서 드림랜드를 켜면 뜨는 주소)
-        const val DEFAULT_URL = "http://127.0.0.1:8000"
+        // 처음 설치했을 때 쓰는 기본 주소. 드림랜드 server.js 의 기본 포트가 4173 이다.
+        // (8000 은 실리태번 기본 포트라 겹치면 실리태번이 열린다)
+        const val DEFAULT_URL = "http://127.0.0.1:4173"
+
+        // 1.0.1 빌드의 잘못된 기본값. 이 값이 저장돼 있으면 새 기본값으로 옮긴다.
+        private const val OLD_DEFAULT_URL = "http://127.0.0.1:8000"
 
         // 앱 아이콘을 길게 눌러 "서버 주소 변경"을 고르면 오는 신호
         const val ACTION_SETTINGS = "com.dreamland.webview.SETTINGS"
@@ -35,8 +39,11 @@ class MainActivity : AppCompatActivity() {
 
     // 사람마다 다른 서버 주소를 각자의 폰에 저장해 둔다
     private var serverUrl: String
-        get() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_URL, DEFAULT_URL) ?: DEFAULT_URL
+        get() {
+            val saved = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_URL, DEFAULT_URL) ?: DEFAULT_URL
+            return if (saved == OLD_DEFAULT_URL) DEFAULT_URL else saved
+        }
         set(value) = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_URL, value).apply()
 
@@ -127,7 +134,7 @@ class MainActivity : AppCompatActivity() {
                          display:flex;flex-direction:column;align-items:center;
                          justify-content:center;height:100vh;margin:0;padding:0 24px;
                          box-sizing:border-box;text-align:center">
-              <p>서버에 연결할 수 없어요.<br>터묵스에서 드림랜드를 먼저 켜 주세요.</p>
+              <p>서버에 연결할 수 없어요.<br>터묵스에서 드림랜드를 먼저 켜 주세요.<br>(sh start.sh)</p>
               <p style="color:#999;font-size:14px;word-break:break-all">지금 주소: $url</p>
               <button onclick="location.href='$url'"
                       style="padding:12px 24px;font-size:16px;margin:8px">다시 시도</button>
