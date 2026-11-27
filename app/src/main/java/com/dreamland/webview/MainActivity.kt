@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_WAKE_LOCK = "wake_lock"
         private const val KEY_ONBOARDED = "onboarded"    // 처음 질문(이미 쓰는지 / 처음인지)에 답했는지
         private const val KEY_SETUP_DONE = "setup_done"  // 설치 안내 02(외부 앱 허용)를 했다고 표시했는지
+        private const val KEY_LEFT_AT_START = "left_at_start"  // 첫 화면에서 뒤로가기로 나갔는지 (다음에 켤 때 바로 들어가지 않음)
 
         // 드림랜드 README 의 Termux 설치 순서를 그대로 따른다
         private const val DREAMLAND_REPO = "https://github.com/geminibug2026/DreamLand.git"
@@ -110,7 +111,44 @@ class MainActivity : AppCompatActivity() {
 })()"""
     }
 
+    /**
+     * 휴대폰 뒤로가기: 드림랜드에 떠 있는 것 중 맨 위 하나만 닫고 무엇을 닫았는지 돌려준다. 없으면 "none".
+     * 드림랜드가 스스로 닫는 방법(닫기 단추 · 열었던 단추 다시 누르기)을 그대로 쓴다.
+     * Esc 는 마지막 수단: 드림랜드에서 Esc 는 "답 받는 중 멈추기"도 하기 때문
+     */
+    private val BACK_JS = """(function(){
+  function vis(el){ if (!el || !el.isConnected) return false; var s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity < 0.05) return false;
+    var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
+  var CLOSE = /^(닫기|Close|关闭)$/;
+  function closeBtn(root){ return root.querySelector('.modal-head .modal-x, .modal-x, .menu-x') ||
+    [].find.call(root.querySelectorAll('button'), function(b){ return CLOSE.test(b.title || b.getAttribute('aria-label') || ''); }); }
+  function btn(re){ return [].find.call(document.querySelectorAll('button'), function(b){ return re.test(b.title || ''); }); }
+  function esc(t){ (t || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true })); }
+  // 0. 앱이 그린 고르기 목록
+  if (window.__dlPickerClose && window.__dlPickerClose()) return 'picker';
+  if (window.__dlSuggestClose && window.__dlSuggestClose()) return 'suggest';
+  // 1. 창 (맨 위 것만)
+  var host = document.getElementById('modals');
+  if (host) { var ws = [].filter.call(host.children, function(w){ return !w.classList.contains('out') && vis(w); });
+    var w = ws[ws.length - 1]; if (w) { var x = closeBtn(w); if (x) x.click(); else esc(w); return 'modal'; } }
+  // 2. 메뉴
+  var m = [].filter.call(document.querySelectorAll('.menu'), vis).pop();
+  if (m) { var mx = m.querySelector('.menu-x'); if (mx) mx.click(); else m.remove(); return 'menu'; }
+  // 3. 그 밖에 화면을 덮는 것 (그림 크게 보기 · 일기장 책 · 명령 찾기 · 스티커 고르기 · 안내 등)
+  var o = [].filter.call(document.querySelectorAll('.ast-lb, .ast-sheet-wrap, .book-wrap, .palette-wrap, .xt-pick, .qr-tray-back, .gd-panel, .gd-tour, .mm-wrap'), vis).pop();
+  if (o) { var ox = closeBtn(o); if (ox) ox.click(); else esc(o.querySelector('input, textarea') || o); return 'overlay:' + o.className; }
+  // 4. 대화 화면의 옆 패널 (장면 패널 · 대화 목록): 열었던 단추를 다시 누른다
+  var lay = document.querySelector('.chat-layout');
+  if (lay && lay.classList.contains('with-drawer')) { var d = btn(/^(장면 패널|Scene panel|场景面板)$/); if (d) { d.click(); return 'drawer'; } }
+  if (lay && lay.classList.contains('show-side')) { var s = btn(/^(대화 목록|Chat list|聊天列表)$/); if (s) { s.click(); return 'side'; } }
+  return 'none';
+})()"""
+
     private enum class Probe { UP, KEY, OTHER, DOWN }
+
+    private var lastBackClose: String? = null
+    private var lastBackAt = 0L
 
     private lateinit var startView: WebView
     private lateinit var dreamView: WebView
@@ -227,6 +265,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var voice: Voice
     private var popup: WebView? = null
     private lateinit var root: FrameLayout
+    private val navStrip by lazy { View(this) }
 
     // ── 화면 ──
 
@@ -315,6 +354,8 @@ class MainActivity : AppCompatActivity() {
         saver = Saver(this, dreamView) { serverUrl }.also { it.attach() }
         // 드림랜드의 글 읽어 주기(브라우저 음성) · 말로 입력하기 → 안드로이드 음성 엔진
         voice = Voice(this, dreamView) { serverUrl }.also { it.attach() }
+        // 드림랜드의 고르기 칸(<select>) 목록을 드림랜드 테마로
+        Picker.attach(dreamView)
 
         startView = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#0C0C0B"))
@@ -335,16 +376,28 @@ class MainActivity : AppCompatActivity() {
         root.addView(startView, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
 
-        // 드림랜드 화면은 상태 표시줄 밑에서 시작한다. 드림랜드는 아래쪽 여백(safe-area)은 스스로 두지만
-        // 위쪽은 페이지마다 달라서 글자가 시계 · 배터리와 겹친다. 비는 띠는 root 바탕색(= 화면 맨 위 색)으로 칠한다
+        // 드림랜드 화면은 크롬처럼 상태 표시줄 밑에서 시작해 아래 막대 위에서 끝난다.
+        //  - 위: 드림랜드는 위쪽 여백을 페이지마다 따로 두지 않아 글자가 시계 · 배터리와 겹쳤다
+        //  - 아래: 막대 밑까지 그리면 드림랜드가 입력칸과 하단 메뉴 둘 다에 막대 높이만큼 여백을 더해 빈 줄이 생겼다
+        //    (크롬에서는 그 값이 0). 그래서 웹뷰에는 막대 높이를 빼고 넘긴다 (키보드 높이는 그대로 넘어감)
+        // 비는 띠는 위 = root 바탕색(화면 맨 위 색), 아래 = navStrip(화면 맨 아래 색)
+        root.addView(navStrip, 0, FrameLayout.LayoutParams(-1, 0, android.view.Gravity.BOTTOM))
         ViewCompat.setOnApplyWindowInsetsListener(dreamView) { v, insets ->
             val top = insets.getInsets(
                 WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
             ).top
+            // 키보드가 뜨면 크롬처럼 화면 자체를 키보드 높이만큼 줄인다 (하단 메뉴가 키보드 위에 보이게).
+            // 줄이지 않고 웹뷰에 키보드 높이만 넘기면 하단 메뉴가 키보드 뒤로 숨는다
+            val bottom = maxOf(
+                insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom,
+                insets.getInsets(WindowInsetsCompat.Type.ime()).bottom,
+            )
             val lp = v.layoutParams as FrameLayout.LayoutParams
-            if (lp.topMargin != top) { lp.topMargin = top; v.layoutParams = lp }
-            // 나머지(아래 막대 높이)는 웹뷰에 그대로 넘겨서 드림랜드의 safe-area 여백이 계속 맞게 한다
-            ViewCompat.onApplyWindowInsets(v, insets.inset(0, top, 0, 0))
+            if (lp.topMargin != top || lp.bottomMargin != bottom) {
+                lp.topMargin = top; lp.bottomMargin = bottom; v.layoutParams = lp
+                (navStrip.layoutParams as FrameLayout.LayoutParams).let { it.height = bottom; navStrip.layoutParams = it }
+            }
+            ViewCompat.onApplyWindowInsets(v, insets.inset(0, top, 0, bottom))
         }
         startChrome(true)
 
@@ -364,15 +417,25 @@ class MainActivity : AppCompatActivity() {
                 when {
                     // 드림랜드가 연 새 창: 그 안에서 뒤로, 더 갈 데가 없으면 닫기
                     popup != null -> popup!!.let { if (it.canGoBack()) it.goBack() else closePopup() }
-                    // 드림랜드 안의 이전 화면으로. 그 앞이 드림랜드가 아니면(빈 페이지 등) 첫 화면으로 간다
-                    dreamView.visibility == View.VISIBLE && dreamView.canGoBack() &&
-                        onServer(dreamView.copyBackForwardList().let { it.getItemAtIndex(it.currentIndex - 1)?.url }) ->
-                        dreamView.goBack()
-                    // 드림랜드의 맨 앞 화면에서 뒤로 → 첫 화면(꿈속으로)
-                    dreamView.visibility == View.VISIBLE -> { showStart(); checkServer(auto = false) }
-                    // 첫 화면: 열린 시트가 있으면 닫고, 없으면 앱을 나간다
+                    // 드림랜드에서 뒤로: 열린 창 · 메뉴 · 패널이 있으면 그것만 닫고,
+                    // 없으면 드림랜드 안의 이전 화면을 거치지 않고 바로 첫 화면(꿈속으로) (사용자 요청)
+                    dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE -> dreamView.evaluateJavascript(BACK_JS) { r ->
+                        val what = r?.trim('"') ?: "none"
+                        val now = SystemClock.elapsedRealtime()
+                        // 같은 것을 닫으려 했는데 그대로 남아 있으면(닫히지 않는 창) 갇히지 않게 첫 화면으로
+                        // (닫기 단추가 확실한 창 · 메뉴 · 고르기 목록은 빠르게 여러 번 열고 닫을 수 있으니 빼고, Esc 로 닫는 것만 본다)
+                        val stuck = what.startsWith("overlay") && what == lastBackClose && now - lastBackAt < 1500
+                        lastBackClose = what; lastBackAt = now
+                        if (what == "none" || stuck) { lastBackClose = null; showStart(smooth = true); checkServer(auto = false, quiet = true) }
+                    }
+                    // 첫 화면: 열린 시트가 있으면 닫고, 없으면 앱을 나간다.
+                    // 완전히 닫지 않고 뒤로 보내서(안드로이드 기본 동작) 다시 열면 첫 화면이 그대로 있게 한다.
+                    // 그사이 시스템이 앱을 정리해 처음부터 켜져도 첫 화면에 머물도록 표시해 둔다
                     else -> startView.evaluateJavascript("window.dl ? dl.back() : false") { r ->
-                        if (r != "true") finish()
+                        if (r != "true") {
+                            prefs.edit().putBoolean(KEY_LEFT_AT_START, true).apply()
+                            moveTaskToBack(true)
+                        }
                     }
                 }
             }
@@ -487,7 +550,7 @@ class MainActivity : AppCompatActivity() {
                 "window.print = function(){ try { DreamPrint.postMessage('print'); } catch (e) {} };", setOf("*"))
         }
         val lp = FrameLayout.LayoutParams(-1, -1)
-        lp.topMargin = (dreamView.layoutParams as FrameLayout.LayoutParams).topMargin
+        (dreamView.layoutParams as FrameLayout.LayoutParams).let { lp.topMargin = it.topMargin; lp.bottomMargin = it.bottomMargin }
         root.addView(pop, root.indexOfChild(dreamView) + 1, lp)
         return pop
     }
@@ -499,12 +562,26 @@ class MainActivity : AppCompatActivity() {
         pop.destroy()
     }
 
-    private fun showStart() {
+    /** smooth = 뒤로가기로 돌아올 때: 첫 화면을 드림랜드 위로 살며시 띄우고(크로스페이드) 첫 화면도 들어갈 때의 반대로 돌아온다 */
+    private fun showStart(smooth: Boolean = false) {
         closePopup()
-        startView.visibility = View.VISIBLE
-        dreamView.visibility = View.GONE
+        enterToken++   // 들어가던 중이면 그만둔다
+        startView.bringToFront()
+        startView.animate().cancel()
         startChrome(true)
-        js("dl.enterDone && dl.enterDone()")
+        if (smooth && dreamView.visibility == View.VISIBLE) {
+            startView.alpha = 0f
+            startView.visibility = View.VISIBLE
+            js("dl.enterDone && dl.enterDone(true)")
+            startView.animate().alpha(1f).setDuration(260)
+                .withEndAction { if (startView.visibility == View.VISIBLE) dreamView.visibility = View.GONE }
+                .start()
+        } else {
+            startView.alpha = 1f
+            startView.visibility = View.VISIBLE
+            dreamView.visibility = View.GONE
+            js("dl.enterDone && dl.enterDone()")
+        }
     }
 
     /**
@@ -552,6 +629,7 @@ class MainActivity : AppCompatActivity() {
         window.statusBarColor = top   // Android 14 이하: 상태 표시줄이 따로 있어서 그 색도 맞춘다 (15 는 무시됨)
         window.decorView.setBackgroundColor(bottom)
         root.setBackgroundColor(top)   // 드림랜드 화면 위 · 상태 표시줄 자리의 띠
+        navStrip.setBackgroundColor(bottom)   // 드림랜드 화면 아래 · 아래 막대 자리의 띠
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightNavigationBars = isLight(bottom)
             isAppearanceLightStatusBars = isLight(top)
@@ -571,7 +649,10 @@ class MainActivity : AppCompatActivity() {
             if (t.startsWith("#")) Color.parseColor(if (t.length == 4) "#" + t.drop(1).map { "$it$it" }.joinToString("") else t)
             else {
                 val n = Regex("[\\d.]+").findAll(t).map { it.value.toFloat() }.toList()
-                if (n.size < 3) null else Color.rgb(n[0].toInt(), n[1].toInt(), n[2].toInt())
+                // "color(srgb 1 1 1)" 꼴은 0~1 값이다 (드림랜드 일부 배경). rgb() 는 0~255
+                val k = if (t.startsWith("color(")) 255f else 1f
+                if (n.size < 3) null
+                else Color.rgb((n[0] * k).toInt().coerceIn(0, 255), (n[1] * k).toInt().coerceIn(0, 255), (n[2] * k).toInt().coerceIn(0, 255))
             }
         } catch (e: Exception) {
             null
@@ -589,13 +670,64 @@ class MainActivity : AppCompatActivity() {
             )
             dreamLoadedUrl = url
         }
-        // 짧게 들어가는 느낌을 준 뒤 드림랜드를 보여 준다
-        main.postDelayed({
-            if (dreamLoadedUrl == null) return@postDelayed   // 그 사이 불러오기에 실패했다
-            dreamView.visibility = View.VISIBLE
+        // 드림랜드를 첫 화면 뒤에 미리 깔아 두고(첫 화면이 가려 줌), 캐릭터 화면의 바퀴 자리를 재서
+        // 첫 화면의 바퀴를 그 자리로 날려 보낸 뒤 첫 화면을 걷어 낸다. 못 재면(다른 화면 · 아직 덜 뜸) 예전처럼 빨려 들어가기
+        prefs.edit().remove(KEY_LEFT_AT_START).apply()   // 드림랜드에 들어갔으니 "첫 화면에서 나감" 표시는 지운다
+        dreamView.visibility = View.VISIBLE
+        startView.bringToFront()
+        val token = ++enterToken
+        measureHero(token, SystemClock.elapsedRealtime())
+    }
+
+    private var enterToken = 0
+
+    /**
+     * 드림랜드 홈의 성도 바퀴(.hm-wheel)와 가운데 캐릭터 원(.hm-core)의 자리 (CSS px, 첫 화면 기준 좌표).
+     * 홈이 아니거나 화면 밖이면 빈 값
+     */
+    private val HERO_JS = """(function(){
+  if (document.readyState !== 'complete') return '';
+  var w = document.querySelector('.hm-hero .hm-wheel'), c = document.querySelector('.hm-hero .hm-core');
+  if (!w || !c || !w.offsetParent) return '';
+  var a = w.getBoundingClientRect(), b = c.getBoundingClientRect();
+  if (a.width < 40 || a.bottom < 0 || a.top > innerHeight) return '';
+  return JSON.stringify({ w: { x: a.left, y: a.top, w: a.width, h: a.height }, c: { x: b.left, y: b.top, w: b.width, h: b.height } });
+})()"""
+
+    private fun measureHero(token: Int, since: Long) {
+        if (token != enterToken || dreamLoadedUrl == null) return
+        dreamView.evaluateJavascript(HERO_JS) { raw ->
+            if (token != enterToken) return@evaluateJavascript
+            val s = raw?.takeIf { it.length > 4 }?.let { runCatching { JSONObject(org.json.JSONTokener(it).nextValue() as String) }.getOrNull() }
+            when {
+                s != null -> {
+                    // 두 화면의 세로 위치 차이를 맞춘다 (보통 0)
+                    val d = resources.displayMetrics.density
+                    val dy = (dreamView.top - startView.top) / d
+                    s.optJSONObject("w")?.let { it.put("y", it.optDouble("y") + dy) }
+                    s.optJSONObject("c")?.let { it.put("y", it.optDouble("y") + dy) }
+                    js("dl.entering && dl.entering($s)")
+                    main.postDelayed({ revealDream(token) }, 560)
+                }
+                SystemClock.elapsedRealtime() - since < 700 -> main.postDelayed({ measureHero(token, since) }, 80)
+                else -> {
+                    js("dl.entering && dl.entering()")
+                    main.postDelayed({ revealDream(token) }, 380)
+                }
+            }
+        }
+    }
+
+    /** 첫 화면을 걷어 내서 뒤에 깔린 드림랜드를 보여 준다 */
+    private fun revealDream(token: Int) {
+        if (token != enterToken || dreamLoadedUrl == null) return   // 그 사이 불러오기에 실패했거나 다시 눌렀다
+        startChrome(false)
+        startView.animate().cancel()
+        startView.animate().alpha(0f).setDuration(220).withEndAction {
+            if (token != enterToken) return@withEndAction
             startView.visibility = View.GONE
-            startChrome(false)
-        }, 380)
+            startView.alpha = 1f
+        }.start()
     }
 
     // ── 서버 살펴보기 ──
@@ -636,9 +768,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** auto = 앱을 처음 켰을 때: 깨어 있으면 바로 들어간다 */
-    private fun checkServer(auto: Boolean) {
+    /** quiet = 방금 드림랜드에서 나온 참이라 깨어 있는 걸 안다: "살펴보는 중" 을 거치지 않고 결과만 반영 (글자가 깜빡이지 않게) */
+    private fun checkServer(auto: Boolean, quiet: Boolean = false) {
         if (waking || sleeping) return
-        pushState("checking")
+        if (quiet) pushState("awake") else pushState("checking")
         val url = serverUrl
         io.execute {
             val r = probe(url)
@@ -1112,7 +1245,10 @@ class MainActivity : AppCompatActivity() {
             }
             lastState?.let { js("dl.onState($it)") }
             // 처음 질문에 아직 답하지 않았으면 자동으로 들어가지 않는다 (질문 화면을 먼저 보여 준다)
-            val auto = firstCheck && onboarded
+            // 뒤로가기로 첫 화면에서 나갔으면 다음에 켤 때도 첫 화면에 머문다 (사용자 요청)
+            val leftAtStart = prefs.getBoolean(KEY_LEFT_AT_START, false)
+            if (leftAtStart) prefs.edit().remove(KEY_LEFT_AT_START).apply()
+            val auto = firstCheck && onboarded && !leftAtStart
             firstCheck = false
             checkServer(auto)
         }.let { }

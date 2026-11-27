@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Android 15 는 앱 화면을 상태 표시줄 · 아래 막대 밑까지 그리게(edge-to-edge) 강제한다.
+      그러면 키보드가 떴을 때 웹뷰 크기를 앱이 손으로 맞춰야 하는데, 그 사이에 입력칸의 추천 목록(datalist)이
+      예전 자리에 남는 등 크롬과 다르게 동작했다. 크롬처럼 시스템이 막대 · 키보드만큼 화면을 줄이게 되돌린다.
+      (targetSdk 35 까지 쓸 수 있는 설정. 36 으로 올릴 때는 다시 봐야 함)
+    -->
+    <style name="Theme.Dreamland" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+    </style>
+</resources>

@@ -27,7 +27,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.AppCompat.NoActionBar">
+        android:theme="@style/Theme.Dreamland">
 
         <activity
             android:name=".MainActivity"

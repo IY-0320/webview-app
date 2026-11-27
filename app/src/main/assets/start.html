@@ -20,7 +20,7 @@
   --sans: "Pretendard Variable", Pretendard, "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
   --out: cubic-bezier(.22, 1, .36, 1);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
-  --top: 24px; --bottom: 24px;
+  --top: 0px; --bottom: 0px;   /* 앱이 시스템 막대 밖에만 그리므로(themes.xml) 막대만큼 비울 필요 없음. 앱이 onInsets 로 알려 주면 그 값 */
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
@@ -94,6 +94,13 @@ body.entering .stage { animation: dive .7s var(--out) forwards; }
 @keyframes turn { to { transform: rotate(-360deg); } }
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @keyframes dive { to { transform: scale(1.12); opacity: 0; } }
+/* 드림랜드에서 뒤로 돌아올 때: 들어갈 때(dive)의 반대로, 살짝 크게 · 흐리게 있다가 제자리로 */
+@keyframes rise { from { transform: scale(1.08); opacity: 0; } }
+.stage.returning { animation: rise .6s var(--out) both; }
+/* 들어갈 때 바퀴가 드림랜드 캐릭터 화면의 바퀴 자리로 날아간다 (나머지 글자 · 단추는 흐려짐) */
+.flying .stage .wheel { transition: transform .55s cubic-bezier(.5, 0, .2, 1); }
+.flying .stage .core { transition: transform .55s cubic-bezier(.5, 0, .2, 1); }
+.flying .words, .flying .bar, .flying .foot { opacity: 0; transition: opacity .25s; }
 
 /* ── 아래: 주소 · 터묵스 상태 ── */
 .foot { position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; padding: 0 22px calc(var(--bottom) + 18px); display: flex; justify-content: space-between; gap: 12px;
@@ -565,7 +572,13 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
     onInsets(t, b) { document.documentElement.style.setProperty('--top', t + 'px'); document.documentElement.style.setProperty('--bottom', b + 'px'); },
     openSettings() { openSheet('settings'); },
     back() { if (document.querySelector('.sheet.on')) { closeSheets(); return true; } return false; },
-    enterDone() { document.body.classList.remove('entering'); },
+    enterDone(back) {
+      document.body.classList.remove('entering');
+      landWheel();
+      if (!back) return;
+      const s = $('stage'); s.classList.remove('returning'); void s.offsetWidth; s.classList.add('returning');
+      clearTimeout(this._rt); this._rt = setTimeout(() => s.classList.remove('returning'), 700);
+    },
   };
 
   // ── 들어가기 ──
@@ -705,7 +718,29 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   let tt;
   function toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => e.classList.remove('on'), 2200); }
   window.dl.toast = toast;
-  window.dl.entering = () => { if (introOn) { introOn = false; cfg.onboarded = true; } closeSheets(); render(); document.body.classList.add('entering'); };
+  // 들어가기. hero = 드림랜드 캐릭터 화면의 바퀴(w) · 가운데 원(c) 자리 → 첫 화면의 바퀴를 그 자리 · 크기로 옮기고 분홍 달 원을 캐릭터 원에 맞춘다
+  // (그다음 앱이 첫 화면을 걷어 내면 같은 자리에 드림랜드 바퀴가 보인다). 자리를 모르면 예전처럼 빨려 들어가기
+  window.dl.entering = hero => {
+    if (introOn) { introOn = false; cfg.onboarded = true; }
+    closeSheets(); render();
+    const wh = document.querySelector('.stage .wheel'), core = wh.querySelector('.core');
+    if (!hero || !hero.w) { document.body.classList.add('entering'); return; }
+    const r = wh.getBoundingClientRect(), c = core.getBoundingClientRect();
+    const k = hero.w.w / r.width;
+    const dx = (hero.w.x + hero.w.w / 2) - (r.left + r.width / 2), dy = (hero.w.y + hero.w.h / 2) - (r.top + r.height / 2);
+    const ck = hero.c && c.width ? hero.c.w / (c.width * k) : 1;
+    document.documentElement.classList.add('flying');
+    wh.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`;
+    core.style.transform = `translate(-50%, -50%) scale(${ck})`;
+  };
+  // 다시 첫 화면으로 왔을 때 날려 보낸 바퀴를 제자리로
+  function landWheel() {
+    const wh = document.querySelector('.stage .wheel'), core = wh.querySelector('.core');
+    document.documentElement.classList.remove('flying');
+    wh.style.transition = core.style.transition = 'none';
+    wh.style.transform = core.style.transform = '';
+    void wh.offsetWidth; wh.style.transition = core.style.transition = '';
+  }
 
   // ── 처음 질문 ──
   function goMain() {
