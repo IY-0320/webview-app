@@ -40,6 +40,16 @@
 - [ ] 다른 사람에게 배포: 저장소가 비공개면 Releases 를 못 보니 공개로 바꾸거나 APK 를 따로 전달
 - [ ] 필요하면: 화면 회전·키보드 처리 점검, 다운로드(내보내기) 지원, 당겨서 새로고침
 
+## 노트북(Windows) 개발 환경
+
+- 프로젝트 위치: `C:\dev\webview-app` (Android Studio 로 GitHub 에서 Clone)
+- Windows 사용자 이름이 한글이라 경로에 한글이 들어가지 않게 맞춤
+  - 환경 변수 `GRADLE_USER_HOME=C:\gradle`
+  - Android SDK 는 `C:\Android\Sdk` 권장 (설정 → Android SDK Location)
+- Gradle JDK: **21** (Android Studio 기본 JDK 25 는 Gradle 8.10.2 와 안 맞음)
+- Claude 데스크톱 앱에서 "이 컴퓨터 + webview-app 폴더"로 세션을 열어 이어서 작업. 워크트리는 끔
+- 이전 대화(클라우드 세션 "Webview-app 연결 문제")의 내용은 이 파일에 모두 정리됨
+
 ## 알아 둘 것
 
 - 삼성 **보안 폴더**에 있는 터묵스도 같은 폰의 `127.0.0.1` 을 씀. 그래서 보안 폴더의 실리태번(:8000)이 열렸던 것
