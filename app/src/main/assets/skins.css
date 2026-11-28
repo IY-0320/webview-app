@@ -5,7 +5,7 @@
     dream   드림랜드 (밤하늘 · 종이)
     kakao   카톡풍 (흰 카드 · 노랑)
     line    라인풍 (초록)
-    imsg    아이메시지풍 (반투명 회색 배너)
+    imsg    아이메시지풍 (뒤 배경이 비치는 흐린 유리 카드)
     samsung 삼성 메시지풍 (One UI 알약)
 */
 
@@ -59,14 +59,17 @@
 .mc.skin-line .mc-face { border-radius: 50%; background: #d7e8dc; color: #2b7a47; }
 .mc.skin-line .mc-body { color: #666; }
 
-/* 아이메시지풍: 반투명 회색 둥근 배너 */
-.mc.skin-imsg { border-radius: 22px; background: rgba(242, 242, 245, .9); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); color: #000; padding: 12px 15px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .22); font-family: -apple-system, "SF Pro Text", "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif; }
+/* 아이메시지풍: 뒤 배경이 흐리게 비치는 유리 카드 · 얼굴 아래 초록 말풍선 배지 */
+.mc.skin-imsg { border-radius: 22px; background: rgba(246, 246, 248, .5); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); color: #1c1c1e; padding: 13px 15px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .18); font-family: -apple-system, "SF Pro Text", "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif; }
 .mc.skin-imsg .mc-app { display: none; }
-.mc.skin-imsg .mc-face { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(#a5abb8, #858b98); color: #fff; font-size: 16px; }
+.mc.skin-imsg .mc-face { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(#a5abb8, #858b98); color: #fff; font-size: 16px; overflow: visible; position: relative; }
+.mc.skin-imsg .mc-face img { border-radius: 50%; }
+.mc.skin-imsg .mc-face::after { content: ""; position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%;
+  background: #34c759 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cellipse cx='9' cy='8.4' rx='5.2' ry='4.2' fill='%23fff'/%3E%3Cpath d='M5.6 10.6 4.6 13.4 8 11.6z' fill='%23fff'/%3E%3C/svg%3E") center / 100% no-repeat; }
 .mc.skin-imsg .mc-tx { gap: 1px; }
 .mc.skin-imsg .mc-name { font-size: 15px; font-weight: 600; display: flex; }
-.mc.skin-imsg .mc-name::after { content: "지금"; margin-left: auto; padding-left: 8px; font-size: 13px; font-weight: 400; color: #8a8a8e; }
+.mc.skin-imsg .mc-name::after { content: "지금"; margin-left: auto; padding-left: 8px; font-size: 13px; font-weight: 400; color: rgba(60, 60, 67, .6); }
 .mc.skin-imsg .mc-body { color: #1c1c1e; font-size: 14px; }
 
 /* 삼성 메시지풍: One UI 알약 · 파랑 포인트 */

@@ -33,6 +33,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import org.json.JSONArray
 import org.json.JSONObject
@@ -325,6 +327,23 @@ object Alerts {
     private fun person(name: String, face: Bitmap?) = Person.Builder().setName(name).setKey("dl:$name")
         .setIcon(IconCompat.createWithBitmap(face ?: letterAvatar(name))).build()
 
+    /**
+     * 캐릭터마다 "대화" 바로가기. 알림에 이걸 붙이면 안드로이드가 대화 알림으로 보여 줘서
+     * 접힌 알림에서도 처음부터 캐릭터 얼굴이 크게 나온다 (앱 아이콘은 얼굴 옆 작은 배지로)
+     */
+    private fun chatShortcut(c: Context, name: String, who: Person, face: Bitmap?): String? = runCatching {
+        val id = "chat_" + idFor(name)
+        val sc = ShortcutInfoCompat.Builder(c, id)
+            .setShortLabel(name)
+            .setLongLived(true)
+            .setPerson(who)
+            .setIcon(IconCompat.createWithBitmap(face ?: letterAvatar(name)))
+            .setIntent(Intent(c, MainActivity::class.java).setAction(ACTION_OPEN))
+            .build()
+        ShortcutManagerCompat.pushDynamicShortcut(c, sc)
+        id
+    }.getOrNull()
+
     fun message(c: Context, name0: String, body: String, faceData: String, skin: String? = null) =
         message(c, name0, listOf(body), faceData, skin)
 
@@ -352,6 +371,7 @@ object Alerts {
         lines.forEachIndexed { i, l -> list.add(Said(l, t0 + i)) }
         while (list.size > 12) list.removeAt(0)
         val who = person(name, faces[name])
+        val shortcut = chatShortcut(c, name, who, faces[name])
         val style = NotificationCompat.MessagingStyle(Person.Builder().setName("나").build())
         list.forEach { style.addMessage(it.text, it.at, who) }
         // 팝업을 띄웠으면 알림은 위에 튀어나오지 않는 채널로 (팝업을 가리지 않게)
@@ -363,6 +383,7 @@ object Alerts {
             .setContentText(list.last().text)
             .setLargeIcon(faces[name] ?: letterAvatar(name))
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .apply { if (shortcut != null) setShortcutId(shortcut) }
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setNumber(list.size)

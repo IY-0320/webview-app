@@ -60,7 +60,10 @@ object Overlay {
         removeNow(c)
         val wm = c.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val top = c.resources.getIdentifier("status_bar_height", "dimen", "android").let { if (it > 0) c.resources.getDimensionPixelSize(it) else dp(c, 24) }
-        val card = Skin.card(c, o.optString("skin"), o.optString("name").ifBlank { "드림랜드" }, o.optString("body").ifBlank { "새 연락이 왔어요" }, o.optString("face"))
+        val skin = o.optString("skin")
+        val glass = skin == "imsg" && Build.VERSION.SDK_INT >= 31 && wm.isCrossWindowBlurEnabled
+        val card = Skin.card(c, skin, o.optString("name").ifBlank { "드림랜드" }, o.optString("body").ifBlank { "새 연락이 왔어요" }, o.optString("face"), glass)
+        if (glass && showGlass(c, card, top)) return@post
         val r = FrameLayout(c).apply {
             clipChildren = false; clipToPadding = false
             setPadding(dp(c, 10), dp(c, 6), dp(c, 10), dp(c, 16))
@@ -96,6 +99,53 @@ object Overlay {
         main.postDelayed(hideLater, 5000)
     }
 
+    private var glassDialog: android.app.Dialog? = null
+
+    /**
+     * 아이메시지풍: 뒤의 배경화면이 흐리게 비치는 유리 카드 (안드로이드 12+ 창 배경 흐림).
+     * 흐림은 창 단위로만 되므로 카드 크기의 창을 따로 띄우고, 둥근 모서리는 창 배경 모양을 따른다
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showGlass(c: Context, card: View, top: Int): Boolean = runCatching {
+        val d = android.app.Dialog(c)
+        d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val w = d.window!!
+        @Suppress("DEPRECATION")
+        w.setType(if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+        d.setContentView(card)
+        w.setBackgroundDrawable(GradientDrawable().apply { setColor(Color.parseColor("#80F6F6F8")); cornerRadius = dp(c, 22).toFloat() })
+        w.setBackgroundBlurRadius(dp(c, 28))
+        w.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        w.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
+        w.setWindowAnimations(android.R.style.Animation_Dialog)
+        w.decorView.setPadding(0, 0, 0, 0)
+        val p = w.attributes
+        p.width = c.resources.displayMetrics.widthPixels - dp(c, 20)
+        p.height = WindowManager.LayoutParams.WRAP_CONTENT
+        p.gravity = Gravity.TOP; p.y = top + dp(c, 6)
+        w.attributes = p
+        d.setCanceledOnTouchOutside(false)
+        d.show()
+        glassDialog = d
+        var y0 = 0f; var moved = false
+        card.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { y0 = e.rawY; moved = false; main.removeCallbacks(hideLater) }
+                MotionEvent.ACTION_MOVE -> if (e.rawY - y0 < -8) moved = true
+                MotionEvent.ACTION_UP -> {
+                    if (moved && e.rawY - y0 < -dp(c, 24)) hide()
+                    else if (!moved) open(c)
+                    else main.postDelayed(hideLater, 3000)
+                }
+                MotionEvent.ACTION_CANCEL -> main.postDelayed(hideLater, 3000)
+            }
+            true
+        }
+        main.removeCallbacks(hideLater)
+        main.postDelayed(hideLater, 5000)
+        true
+    }.getOrElse { glassDialog?.let { g -> runCatching { g.dismiss() } }; glassDialog = null; false }
+
     private fun open(c: Context) {
         removeNow(c)
         runCatching {
@@ -110,14 +160,18 @@ object Overlay {
     }
 
     private fun slideAway() {
+        if (glassDialog != null) { removeNow(null); return }
         val r = root ?: return
         main.removeCallbacks(hideLater)
         // 창을 떼면 창 애니메이션으로 사라진다 (앱 안 애니메이션은 뒤에 있을 때 멈출 수 있어서 쓰지 않음)
         removeNow(r.context)
     }
 
-    private fun removeNow(c: Context) {
+    private fun removeNow(c: Context?) {
+        glassDialog?.let { g -> glassDialog = null; runCatching { g.dismiss() } }
+        main.removeCallbacks(hideLater)
         val r = root ?: return
+        if (c == null) return
         root = null
         main.removeCallbacks(hideLater)
         runCatching { (c.getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(r) }
@@ -128,7 +182,7 @@ object Overlay {
 
 /** 메시지 카드 다섯 가지 (skins.css 의 .mc 와 같은 모양) */
 private object Skin {
-    private class Look(
+    private data class Look(
         val bg: Int, val radius: Int, val stroke: Int = 0,
         val name: Int, val body: Int,
         val app: String?, val appColor: Int = 0, val timeColor: Int = 0, val icon: Int = 0, val iconDot: Int = 0, val iconRound: Boolean = false,
@@ -147,9 +201,9 @@ private object Skin {
         "line" to Look(bg = Color.WHITE, radius = 12, name = c("#111111"), body = c("#666666"),
             app = "DREAM", appColor = Color.WHITE, timeColor = c("#D9FFFFFF"), icon = Color.WHITE, iconDot = c("#06C755"), header = c("#06C755"),
             face = c("#D7E8DC"), faceText = c("#2B7A47"), faceRadius = .5f),
-        "imsg" to Look(bg = c("#F5F2F2F5"), radius = 22, name = Color.BLACK, body = c("#1C1C1E"),
-            app = null, timeColor = c("#8A8A8E"), timeAfterName = true,
-            face = c("#959AA6"), faceText = Color.WHITE, faceRadius = .5f, faceSize = 38),
+        "imsg" to Look(bg = c("#CCF4F4F6"), radius = 22, name = c("#1C1C1E"), body = c("#1C1C1E"),
+            app = null, timeColor = c("#993C3C43"), timeAfterName = true,
+            face = c("#959AA6"), faceText = Color.WHITE, faceRadius = .5f, faceSize = 40),
         "samsung" to Look(bg = c("#FCFCFF"), radius = 26, name = c("#111111"), body = c("#555555"),
             app = "메시지", appColor = c("#3E91FF"), timeColor = c("#8C8C8C"), icon = c("#3E91FF"), iconDot = Color.WHITE, iconRound = true,
             face = c("#C8D9F5"), faceText = c("#2F63B8"), faceRadius = .5f),
@@ -157,17 +211,20 @@ private object Skin {
 
     private fun c(s: String) = Color.parseColor(s)
 
-    fun card(ctx: Context, skin: String, name: String, body: String, faceData: String): View {
-        val k = LOOKS[skin] ?: LOOKS.getValue("dream")
+    /** glass = 카드 바탕은 창(Overlay.showGlass)이 흐린 유리로 그린다 */
+    fun card(ctx: Context, skin: String, name: String, body: String, faceData: String, glass: Boolean = false): View {
+        val k0 = LOOKS[skin] ?: LOOKS.getValue("dream")
+        val k = if (glass) k0.copy(bg = Color.TRANSPARENT) else k0
         fun dp(v: Int) = Overlay.dp(ctx, v)
         fun dpf(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, ctx.resources.displayMetrics)
         val bg = GradientDrawable().apply { setColor(k.bg); cornerRadius = dpf(k.radius.toFloat()); if (k.stroke != 0) setStroke(dp(1), k.stroke) }
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             background = bg
-            elevation = dpf(10f)
+            elevation = dpf(if (skin == "imsg") 0f else 10f)   // 반투명 카드는 그림자가 비쳐 탁해진다
             outlineProvider = ViewOutlineProvider.BACKGROUND
             clipToOutline = true
+            clipToPadding = false   // 라인풍 초록 띠가 카드 양 끝까지 닿게 (안쪽 여백에서 잘리지 않게)
             val side = if (skin == "samsung") 18 else if (skin == "imsg") 15 else 14
             setPadding(dp(side), if (k.header != 0) 0 else dp(12), dp(side), dp(13))
         }
@@ -216,6 +273,13 @@ private object Skin {
             setTextColor(k.faceText); setTextSize(TypedValue.COMPLEX_UNIT_SP, if (k.faceSize < 44) 16f else 19f); gravity = Gravity.CENTER
             if (skin == "dream") typeface = Typeface.SERIF
         }, FrameLayout.LayoutParams(-1, -1))
+        if (skin == "imsg") {
+            // 아이메시지풍: 얼굴 오른쪽 아래에 초록 말풍선 배지 (잠금 화면 알림처럼)
+            val box = FrameLayout(ctx).apply { clipChildren = false; clipToPadding = false }
+            box.addView(face, FrameLayout.LayoutParams(size, size))
+            box.addView(Badge(ctx), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.BOTTOM or Gravity.END))
+            main.addView(box, LinearLayout.LayoutParams(size + dp(4), size + dp(4)).apply { marginEnd = dp(10) })
+        } else
         main.addView(face, LinearLayout.LayoutParams(size, size).apply { marginEnd = dp(12) })
         val tx = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         val nameRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -232,6 +296,19 @@ private object Skin {
         main.addView(tx, LinearLayout.LayoutParams(0, -2, 1f))
         card.addView(main)
         return card
+    }
+
+    /** 초록 동그라미 + 흰 말풍선 */
+    private class Badge(ctx: Context) : View(ctx) {
+        private val g = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#34C759") }
+        private val w = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        override fun onDraw(cv: android.graphics.Canvas) {
+            val s = width / 18f
+            cv.drawCircle(width / 2f, height / 2f, width / 2f, g)
+            cv.drawOval(3.8f * s, 4.2f * s, 14.2f * s, 12.6f * s, w)
+            val tail = android.graphics.Path().apply { moveTo(5.6f * s, 10.6f * s); lineTo(4.6f * s, 13.4f * s); lineTo(8f * s, 11.6f * s); close() }
+            cv.drawPath(tail, w)
+        }
     }
 
     private fun square(data: String?): Bitmap? {
