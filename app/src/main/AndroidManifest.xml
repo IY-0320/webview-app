@@ -9,6 +9,18 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- 드림랜드 대화 모드의 연락 · 전화를 폰 알림으로 (Android 13+ 는 처음 쓸 때 묻는다) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 걸려 온 전화를 잠금 화면 위에 띄우기 (Android 14+ 는 사용자가 설정에서 허락) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- 다른 앱 위 메시지 팝업 (고른 디자인). 사용자가 설정에서 켤 때만 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 앱을 나가도 연락 받기 (설정에서 켤 때만): 고정 알림을 띄운 채 드림랜드를 깨워 둔다 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Android 11+ 에서 터묵스가 설치돼 있는지 보고, 터묵스 서비스를 부르려면 필요 -->
     <!-- 글 읽어 주기(TTS) · 받아쓰기 엔진을 찾으려면 필요 -->
     <queries>
@@ -39,9 +51,58 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 공유로 받기: 다른 앱에서 캐릭터 카드 · 파일을 "공유 → Dreamland" -->
+            <intent-filter android:label="드림랜드로 불러오기">
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/webp" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- 파일 열기: 파일 앱에서 "Dreamland 로 열기" -->
+            <intent-filter android:label="드림랜드로 불러오기">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/webp" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- 걸려 온 전화 화면 (잠금 화면 위에도) -->
+        <activity
+            android:name=".CallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.dreamland.webview.call"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Dreamland" />
+
+        <!-- 알림의 "거절" 단추 · 알림 지우기 (이 앱 안에서만) -->
+        <receiver
+            android:name=".AlertReceiver"
+            android:exported="false" />
+
+        <!-- 앱을 나가도 연락 받기 -->
+        <service
+            android:name=".AwakeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user's local Dreamland chat page running so character messages and calls arrive while the app is in the background" />
+        </service>
     </application>
 </manifest>

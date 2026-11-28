@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 알림 막대의 작은 아이콘 (초승달 + 반짝이, 흰색 한 가지) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="68"
+    android:viewportHeight="68"
+    android:tint="#FFFFFFFF">
+    <group android:translateX="-22" android:translateY="-20">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M43.39,33.06 A21,21 0 1 1 28.17,66.56 A18.5,18.5 0 0 0 43.39,33.06 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M73,34 Q73,41 80,41 Q73,41 73,48 Q73,41 66,41 Q73,41 73,34 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M73,64.5 Q73,69 77.5,69 Q73,69 73,73.5 Q73,69 68.5,69 Q73,69 73,64.5 Z" />
+    </group>
+</vector>

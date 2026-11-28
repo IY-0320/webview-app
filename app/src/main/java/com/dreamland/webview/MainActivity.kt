@@ -21,9 +21,15 @@ import android.print.PrintManager
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import android.os.SystemClock
+import android.os.PowerManager
+import android.provider.OpenableColumns
+import android.provider.Settings
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.*
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -261,8 +267,46 @@ class MainActivity : AppCompatActivity() {
             fileCallback = null
         }
 
+    // 폰 알림 권한 (Android 13+). 드림랜드의 "알림으로 받기"(Notification.requestPermission)나 앱 설정에서 묻는다
+    private val notifyAsk =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            prefs.edit().putBoolean("n_asked", true).apply()
+            if (::notify.isInitialized) notify.pushPermission()
+            js("dl.onNotifyPerm && dl.onNotifyPerm(${JSONObject.quote(notifyPermState())})")
+        }
+
+    // 알림 꾸미기의 "내 소리 고르기"
+    private var soundKind = "msg"
+    private val soundPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            uri ?: return@registerForActivityResult
+            val kind = soundKind
+            io.execute {
+                var name = "내 소리"
+                runCatching {
+                    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0)?.let { name = it } }
+                }
+                val ok = runCatching {
+                    contentResolver.openInputStream(uri)!!.use { i -> Alerts.customFile(this, kind).outputStream().use { i.copyTo(it) } }
+                }.isSuccess
+                main.post {
+                    if (ok) prefs.edit().apply {
+                        if (kind == "call") putString("c_sound", "custom").putString("c_sound_name", name)
+                        else putString("n_sound", "custom").putString("n_sound_name", name)
+                    }.apply()
+                    js("dl.onSound && dl.onSound(" + JSONObject().put("kind", kind).put("ok", ok).put("name", name).put("cfg", configJson()) + ")")
+                }
+            }
+        }
+
     private lateinit var saver: Saver
     private lateinit var voice: Voice
+    private lateinit var notify: Notify
+    private lateinit var share: Share
+    /** 앱이 앞에 떠 있는지 (onResume ~ onPause) */
+    private var front = false
+    /** 첫 화면이 준비되면 (서버를 살펴본 뒤) 바로 드림랜드로 들어간다: 알림 · 공유로 열었을 때 */
+    private var enterWhenReady = false
     private var popup: WebView? = null
     private lateinit var root: FrameLayout
     private val navStrip by lazy { View(this) }
@@ -301,6 +345,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     if (!request.isForMainFrame) return
                     dreamLoadedUrl = null
+                    syncAwake()
                     showStart()
                     checkServer(auto = false)
                 }
@@ -317,8 +362,16 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail) = rendererGone()
 
+                // 공유받은 파일을 드림랜드 주소 아래로 흘려 준다 (Share)
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+                    share.intercept(request)
+
                 override fun onPageFinished(view: WebView, url: String) {
                     saver.inject()
+                    // 첫 화면 뒤에 가려진 채로 다시 불러왔으면 "안 보는 중"을 다시 알린다
+                    if (dreamPaused || parked) view.evaluateJavascript("window.__dlSetHidden && __dlSetHidden(true)", null)
+                    if (onServer(url) && share.hasPending && dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE)
+                        share.deliver(dreamView)
                     // 새로 들어간 드림랜드가 다 뜬 뒤에 지난 기록을 지운다.
                     // (불러오기 직후에 지우면 아직 앞 페이지(about:blank)가 현재라 그게 기록에 남아,
                     //  뒤로 가면 하얀 화면이 나왔다)
@@ -356,6 +409,17 @@ class MainActivity : AppCompatActivity() {
         voice = Voice(this, dreamView) { serverUrl }.also { it.attach() }
         // 드림랜드의 고르기 칸(<select>) 목록을 드림랜드 테마로
         Picker.attach(dreamView)
+        // 드림랜드 대화 모드의 알림 · 걸려 오는 전화 → 폰 알림 · 전화 화면
+        notify = Notify(this, dreamView, { serverUrl }, object : Notify.Host {
+            override fun dreamShowing() = front && dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE
+            override fun appFront() = front
+            override fun banner(name: String, body: String, face: String, skin: String) =
+                js("dl.banner && dl.banner(" + JSONObject().put("name", name).put("body", body).put("face", face).put("skin", skin) + ")")
+            override fun askPermission() = askNotifyPermission()
+            override fun permissionState() = notifyPermState()
+        }).also { it.attach() }
+        // 다른 앱에서 공유 · "Dreamland 로 열기" 한 파일 → 드림랜드 불러오기
+        share = Share(this) { serverUrl }
 
         startView = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#0C0C0B"))
@@ -383,6 +447,8 @@ class MainActivity : AppCompatActivity() {
         // 비는 띠는 위 = root 바탕색(화면 맨 위 색), 아래 = navStrip(화면 맨 아래 색)
         root.addView(navStrip, 0, FrameLayout.LayoutParams(-1, 0, android.view.Gravity.BOTTOM))
         ViewCompat.setOnApplyWindowInsetsListener(dreamView) { v, insets ->
+            // 앱이 뒤에 있는 동안 보이지 않는 창으로 옮겨 둔 때(parkDream)는 손대지 않는다
+            if (v.parent !== root) return@setOnApplyWindowInsetsListener insets
             val top = insets.getInsets(
                 WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout()
             ).top
@@ -445,19 +511,106 @@ class MainActivity : AppCompatActivity() {
             firstCheck = false
             openSettingsWhenReady = true
         }
+        // 알림을 누르거나 파일을 공유해서 처음 켜졌으면: 첫 화면이 준비되는 대로 드림랜드로 들어간다
+        if (savedInstanceState == null && (intent?.action == Alerts.ACTION_OPEN || intent?.action == Alerts.ACTION_CALL || share.take(intent)))
+            enterWhenReady = true
         startView.loadUrl(START_PAGE)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action == ACTION_SETTINGS) {
-            showStart()
-            if (startReady) js("dl.openSettings()") else openSettingsWhenReady = true
+        when {
+            intent.action == ACTION_SETTINGS -> {
+                showStart()
+                if (startReady) js("dl.openSettings()") else openSettingsWhenReady = true
+            }
+            // 메시지 · 부재중 알림을 눌렀다: 드림랜드로
+            intent.action == Alerts.ACTION_OPEN -> openDream()
+            // 전화 받기 · 문자로 (전화 화면 · 전화 알림에서)
+            intent.action == Alerts.ACTION_CALL -> {
+                val what = intent.getStringExtra("do") ?: "accept"
+                if (!showDreamNow()) { openDream(); return }
+                notify.run(what) { ok -> if (!ok) Toast.makeText(this, "전화가 이미 끊겼어요", Toast.LENGTH_SHORT).show() }
+            }
+            share.take(intent) -> openDream()
         }
+    }
+
+    /** 드림랜드가 떠 있으면 그대로, 아니면 꿈속으로 (꺼져 있으면 깨운다). 공유받은 파일이 있으면 넘긴다 */
+    private fun openDream() {
+        if (!startReady) { enterWhenReady = true; return }
+        if (dreamLoadedUrl != null && dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE) {
+            if (share.hasPending) share.deliver(dreamView)
+            return
+        }
+        closePopup()
+        enter()
+    }
+
+    /**
+     * 전화를 받을 때: 이미 불러 둔 드림랜드를 애니메이션 없이 바로 보여 준다 (울리는 동안 서둘러야 해서).
+     * 드림랜드를 불러 둔 적이 없으면 false
+     */
+    private fun showDreamNow(): Boolean {
+        if (dreamLoadedUrl == null || !onServer(dreamView.url)) return false
+        closePopup()
+        enterToken++
+        startView.animate().cancel()
+        dreamView.visibility = View.VISIBLE
+        dreamHidden(false)
+        startView.visibility = View.GONE
+        startView.alpha = 1f
+        js("dl.enterDone && dl.enterDone()")
+        startChrome(false)
+        dreamShown()
+        return true
+    }
+
+    /** 드림랜드가 화면에 나왔을 때: 쌓인 메시지 알림을 걷고, 화면 켜 두기를 맞춘다 */
+    private fun dreamShown() {
+        Alerts.clearMessages(this)
+        keepScreen()
+    }
+
+    /** 대화 중 화면 켜 두기: 드림랜드가 떠 있을 때만 */
+    private fun keepScreen() {
+        val on = Alerts.cfg(this).keepScreen && dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    /** 앱을 나가도 연락 받기: 켜 두었고 드림랜드를 불러 둔 동안만 */
+    private fun syncAwake() {
+        if (Alerts.cfg(this).awake && dreamLoadedUrl != null) AwakeService.start(this) else AwakeService.stop(this)
+    }
+
+    private fun notifyPermState(): String = when {
+        Alerts.canNotify(this) -> "granted"
+        Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("n_asked", false) -> "default"
+        else -> "denied"
+    }
+
+    /** 폰 알림 권한 묻기. 한 번 거절한 뒤에는 안드로이드가 다시 묻지 않으므로 앱 알림 설정 화면을 연다 */
+    private fun askNotifyPermission() {
+        when (notifyPermState()) {
+            "granted" -> { notify.pushPermission(); js("dl.onNotifyPerm && dl.onNotifyPerm('granted')") }
+            "default" -> notifyAsk.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            else -> openAppNotificationSettings()
+        }
+    }
+
+    private fun openAppNotificationSettings() {
+        val i = if (Build.VERSION.SDK_INT >= 26) Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        runCatching { startActivity(i) }
     }
 
     override fun onResume() {
         super.onResume()
+        front = true
+        // 알림 설정 화면에 다녀왔을 수 있으니 권한을 다시 알린다
+        notify.pushPermission()
+        if (dreamView.visibility == View.VISIBLE && startView.visibility != View.VISIBLE) Alerts.clearMessages(this)
         // 터묵스에 다녀왔을 때: 첫 화면이면 상태를 다시 본다
         if (startReady && !waking && !sleeping && startView.visibility == View.VISIBLE) checkServer(auto = false)
         // 터묵스를 깔고 오거나 권한을 바꾸고 왔을 수 있으니 설치 안내의 상태 표시를 새로 고친다
@@ -467,14 +620,19 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        front = false
         main.removeCallbacks(barSync)   // 안 보일 때는 막대 색을 읽지 않는다
     }
 
     override fun onDestroy() {
+        unparkDream()
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
         saver.shutdown()
         voice.shutdown()
+        notify.shutdown()
+        Alerts.stopPreview()
+        if (!isChangingConfigurations) AwakeService.stop(this)
         closePopup()
         runCatching { unregisterReceiver(resultReceiver) }
         super.onDestroy()
@@ -491,6 +649,7 @@ class MainActivity : AppCompatActivity() {
         if (!recreating) {
             recreating = true
             main.post {
+                unparkDream()
                 closePopup()
                 (startView.parent as? FrameLayout)?.removeAllViews()
                 startView.destroy()
@@ -574,14 +733,93 @@ class MainActivity : AppCompatActivity() {
             startView.visibility = View.VISIBLE
             js("dl.enterDone && dl.enterDone(true)")
             startView.animate().alpha(1f).setDuration(260)
-                .withEndAction { if (startView.visibility == View.VISIBLE) dreamView.visibility = View.GONE }
+                .withEndAction { if (startView.visibility == View.VISIBLE) { dreamView.visibility = View.GONE; dreamHidden(true) } }
                 .start()
         } else {
             startView.alpha = 1f
             startView.visibility = View.VISIBLE
             dreamView.visibility = View.GONE
+            dreamHidden(true)
             js("dl.enterDone && dl.enterDone()")
         }
+        keepScreen()
+    }
+
+    /**
+     * 드림랜드를 첫 화면 뒤로 숨길 때 드림랜드에 "안 보임"이라고 알린다 (크롬의 뒤에 있는 탭처럼 document.hidden = true).
+     * 웹뷰는 감추기(GONE)만으로는 보이는 중이라고 여겨서, 드림랜드가 "화면을 안 볼 때 온 연락" 알림을 보내지 않았다.
+     * 웹뷰 onPause() 로 숨기면 드림랜드의 타이머 · 저장소까지 멈춰서(S22) 선연락이 오지 않았다 → 표시만 바꾼다 (Notify 의 __dlSetHidden)
+     */
+    private var dreamPaused = false
+    private fun dreamHidden(hidden: Boolean) {
+        if (hidden == dreamPaused) return
+        dreamPaused = hidden
+        pushHidden()
+    }
+    /** 드림랜드에 알리는 "안 보는 중" = 첫 화면에 가려짐 또는 보이지 않는 창에 옮겨 둠 */
+    private fun pushHidden() =
+        dreamView.evaluateJavascript("window.__dlSetHidden && __dlSetHidden(${dreamPaused || parked})", null)
+
+    // ── 앱이 뒤에 있는 동안 드림랜드를 깨워 두기 ──
+    // 안드로이드 웹 화면(크로미움)은 화면에서 숨은 지 5분쯤 지나면 페이지를 통째로 재운다 (타이머가 안 돎 → 선연락이 멈춤, S22).
+    // "앱을 나가도 연락 받기"가 켜져 있으면 앱이 뒤로 갈 때 드림랜드 웹 화면을 "다른 앱 위에 표시" 창(투명 · 터치 안 받음)으로
+    // 옮겨 둔다. 엔진은 보이는 페이지로 여겨 재우지 않고, 드림랜드에는 계속 "안 보는 중"(document.hidden)으로 알린다.
+    // 앱이 다시 앞으로 오면 원래 자리로 되돌린다.
+
+    private var parked = false
+    private var parkIndex = -1
+    private var parkLp: ViewGroup.LayoutParams? = null
+
+    private fun canPark() = Alerts.cfg(this).awake && AwakeService.running && Overlay.allowed(this) &&
+        dreamLoadedUrl != null && dreamView.parent === root && !isFinishing && !isChangingConfigurations
+
+    private fun parkDream() {
+        if (parked || !canPark()) return
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val w = dreamView.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        val h = dreamView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+        @Suppress("DEPRECATION")
+        val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
+        val p = WindowManager.LayoutParams(w, h, type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            android.graphics.PixelFormat.TRANSLUCENT).apply {
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            alpha = 0f   // 보이지 않게 (아래 앱의 터치도 막지 않는다)
+        }
+        parkIndex = root.indexOfChild(dreamView)
+        parkLp = dreamView.layoutParams
+        val wasVisible = dreamView.visibility
+        root.removeView(dreamView)
+        dreamView.visibility = View.VISIBLE
+        if (runCatching { wm.addView(dreamView, p) }.isFailure) {
+            dreamView.visibility = wasVisible
+            root.addView(dreamView, parkIndex, parkLp)
+            return
+        }
+        dreamView.tag = wasVisible
+        parked = true
+        pushHidden()
+    }
+
+    private fun unparkDream() {
+        if (!parked) return
+        parked = false
+        runCatching { (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeViewImmediate(dreamView) }
+        dreamView.visibility = (dreamView.tag as? Int) ?: View.GONE
+        root.addView(dreamView, parkIndex.coerceIn(0, root.childCount), parkLp ?: FrameLayout.LayoutParams(-1, -1))
+        pushHidden()
+        ViewCompat.requestApplyInsets(dreamView)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        unparkDream()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        parkDream()
     }
 
     /**
@@ -670,10 +908,12 @@ class MainActivity : AppCompatActivity() {
             )
             dreamLoadedUrl = url
         }
+        syncAwake()
         // 드림랜드를 첫 화면 뒤에 미리 깔아 두고(첫 화면이 가려 줌), 캐릭터 화면의 바퀴 자리를 재서
         // 첫 화면의 바퀴를 그 자리로 날려 보낸 뒤 첫 화면을 걷어 낸다. 못 재면(다른 화면 · 아직 덜 뜸) 예전처럼 빨려 들어가기
         prefs.edit().remove(KEY_LEFT_AT_START).apply()   // 드림랜드에 들어갔으니 "첫 화면에서 나감" 표시는 지운다
         dreamView.visibility = View.VISIBLE
+        dreamHidden(false)
         startView.bringToFront()
         val token = ++enterToken
         measureHero(token, SystemClock.elapsedRealtime())
@@ -727,6 +967,9 @@ class MainActivity : AppCompatActivity() {
             if (token != enterToken) return@withEndAction
             startView.visibility = View.GONE
             startView.alpha = 1f
+            dreamShown()
+            // 공유받은 파일: 드림랜드가 다 떴으면 바로, 아직이면 onPageFinished 에서
+            if (share.hasPending && dreamView.progress >= 100) share.deliver(dreamView)
         }.start()
     }
 
@@ -1043,6 +1286,8 @@ class MainActivity : AppCompatActivity() {
         sleeping = true
         sleepStartedAt = SystemClock.elapsedRealtime()
         dreamLoadedUrl = null           // 다음에 들어갈 때는 새로 불러온다
+        syncAwake()
+        Alerts.endRing(this, missed = false, quiet = true)
         dreamView.loadUrl("about:blank")
         pushState("sleeping")
         main.postDelayed(::pollSleep, POLL_MS)
@@ -1217,6 +1462,23 @@ class MainActivity : AppCompatActivity() {
         put("repo", DREAMLAND_REPO)
         // 터묵스 GitHub 판은 CPU 종류별로 파일이 따로라, 이 폰에 맞는 이름을 알려 주려고 넘긴다
         put("abi", Build.SUPPORTED_ABIS.firstOrNull() ?: "")
+        put("notify", notifyJson())
+    }
+
+    /** 알림 · 전화 · 화면 설정과 폰 쪽 허락 상태 */
+    private fun notifyJson() = JSONObject().apply {
+        val c = Alerts.cfg(this@MainActivity)
+        put("msg", c.msgOn); put("call", c.callOn); put("awake", c.awake)
+        put("mode", c.mode); put("sound", c.sound); put("soundName", c.soundName); put("vibe", c.vibe)
+        put("preview", c.preview); put("banner", c.banner)
+        put("ring", c.ring); put("ringName", c.ringName); put("ringVibe", c.ringVibe); put("callFull", c.callFull)
+        put("overlay", Overlay.allowed(this@MainActivity))
+        put("quietOn", c.quietOn); put("quietFrom", c.quietFrom); put("quietTo", c.quietTo)
+        put("keepScreen", c.keepScreen)
+        put("perm", notifyPermState())
+        put("fullScreen", Alerts.canFullScreen(this@MainActivity))
+        put("fullScreenAsk", Build.VERSION.SDK_INT >= 34)
+        put("battery", Build.VERSION.SDK_INT < 23 || (getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName))
     }
 
     private fun pushState(state: String, vararg extra: Pair<String, Any>) {
@@ -1250,7 +1512,8 @@ class MainActivity : AppCompatActivity() {
             if (leftAtStart) prefs.edit().remove(KEY_LEFT_AT_START).apply()
             val auto = firstCheck && onboarded && !leftAtStart
             firstCheck = false
-            checkServer(auto)
+            // 알림 · 공유로 열었으면 꺼져 있어도 깨워서 들어간다
+            if (enterWhenReady && onboarded) { enterWhenReady = false; enter() } else checkServer(auto)
         }.let { }
 
         @JavascriptInterface
@@ -1317,6 +1580,142 @@ class MainActivity : AppCompatActivity() {
         /** 설치 안내 02 "했어요" 표시 (첫 화면은 웹 저장소를 쓰지 않아서 앱 쪽에 저장한다) */
         @JavascriptInterface
         fun setSetupDone(v: Boolean) = main.post { setupDone = v }.let { }
+
+        // ── 알림 · 전화 · 화면 ──
+
+        /** 알림 꾸미기 · 알림 칸의 값 저장 (보낸 것만 바꾼다) */
+        @JavascriptInterface
+        fun saveNotify(json: String) = main.post {
+            val o = runCatching { JSONObject(json) }.getOrNull() ?: return@post
+            val e = prefs.edit()
+            fun b(k: String, key: String) { if (o.has(k)) e.putBoolean(key, o.optBoolean(k)) }
+            fun s(k: String, key: String, ok: (String) -> Boolean) { if (o.has(k)) o.optString(k).takeIf(ok)?.let { e.putString(key, it) } }
+            val time = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
+            b("msg", "n_msg"); b("call", "n_call"); b("awake", "n_awake"); b("banner", "n_banner"); b("ringVibe", "c_vibe"); b("callFull", "c_full")
+            b("quietOn", "q_on"); b("keepScreen", "keep_screen")
+            s("mode", "n_mode") { it in setOf("both", "sound", "vibe", "silent") }
+            s("sound", "n_sound") { it in Alerts.MSG_SOUNDS || (it == "custom" && Alerts.customFile(this@MainActivity, "msg").length() > 0) }
+            s("vibe", "n_vibe") { it in setOf("tap", "double", "long", "heart") }
+            s("preview", "n_preview") { it in setOf("full", "name", "hide") }
+            s("ring", "c_sound") { it in Alerts.RING_SOUNDS || (it == "custom" && Alerts.customFile(this@MainActivity, "call").length() > 0) }
+            s("quietFrom", "q_from") { time.matches(it) }
+            s("quietTo", "q_to") { time.matches(it) }
+            e.apply()
+            syncAwake()
+            keepScreen()
+            // 처음 켤 때 권한이 없으면 바로 묻는다
+            if ((o.optBoolean("msg") || o.optBoolean("call") || o.optBoolean("awake")) && notifyPermState() == "default") askNotifyPermission()
+        }.let { }
+
+        @JavascriptInterface
+        fun getNotify(): String = notifyJson().toString()
+
+        @JavascriptInterface
+        fun askNotify() = main.post { askNotifyPermission() }.let { }
+
+        /** kind = msg · call · vibe, id = 소리 · 진동 이름 */
+        @JavascriptInterface
+        fun previewSound(kind: String, id: String) = main.post { Alerts.preview(this@MainActivity, kind, id) }.let { }
+
+        @JavascriptInterface
+        fun stopPreview() = main.post { Alerts.stopPreview() }.let { }
+
+        @JavascriptInterface
+        fun pickSound(kind: String) = main.post {
+            soundKind = if (kind == "call") "call" else "msg"
+            runCatching { soundPicker.launch("audio/*") }
+        }.let { }
+
+        /**
+         * 시험: msg = 지금 메시지 알림 하나 / call = 3초 뒤 시험 전화 / popup = 3초 뒤 다른 앱 위 팝업 (그동안 앱을 나가 봐야 보임).
+         * skin 을 주면 그 디자인으로 (알림 꾸미기의 디자인 미리보기)
+         */
+        @JavascriptInterface
+        fun testNotify(kind: String, skin: String?) = main.post {
+            val sk = skin?.takeIf { it in Alerts.SKINS }
+            when (kind) {
+                "call" -> main.postDelayed({
+                    Alerts.startRing(this@MainActivity, "드림랜드", "", foreground = front, test = true, skin = sk)
+                }, 3000)
+                "popup" -> main.postDelayed({
+                    if (Overlay.usable(this@MainActivity)) Overlay.show(this@MainActivity, JSONObject().put("skin", sk ?: Alerts.skinDefault(this@MainActivity, "msg"))
+                        .put("name", "드림랜드").put("body", "팝업 시험이에요. 다른 앱을 쓰는 중에도 이렇게 떠요 ✦").put("face", ""))
+                }, 3000)
+                else -> {
+                    if (notifyPermState() != "granted") { askNotifyPermission(); return@post }
+                    Alerts.message(this@MainActivity, "드림랜드", "알림 시험이에요. 연락이 오면 이렇게 알려 드려요 ✦", "", sk)
+                }
+            }
+        }.let { }
+
+        /** 디자인: 기본 · 캐릭터별 · 팝업 켜짐 · 팝업 권한 · 연락 온 캐릭터 목록 */
+        @JavascriptInterface
+        fun getSkins(): String {
+            val map = Alerts.skinMap(this@MainActivity)
+            val seen = Alerts.seen(this@MainActivity)
+            for (i in 0 until seen.length()) seen.optJSONObject(i)?.let { o ->
+                map.optJSONObject(o.optString("name"))?.let { s -> o.put("msg", s.optString("msg")).put("call", s.optString("call")) }
+            }
+            return JSONObject()
+                .put("msg", Alerts.skinDefault(this@MainActivity, "msg"))
+                .put("call", Alerts.skinDefault(this@MainActivity, "call"))
+                .put("popup", Alerts.cfg(this@MainActivity).popup)
+                .put("overlay", Overlay.allowed(this@MainActivity))
+                .put("awake", Alerts.cfg(this@MainActivity).awake)
+                .put("seen", seen)
+                .toString()
+        }
+
+        /** {msg?, call?, popup?} = 기본 / {name, msg?, call?} = 그 캐릭터 ("" = 기본 따라가기) */
+        @JavascriptInterface
+        fun saveSkin(json: String) = main.post {
+            val o = runCatching { JSONObject(json) }.getOrNull() ?: return@post
+            val e = prefs.edit()
+            val name = o.optString("name")
+            if (name.isEmpty()) {
+                o.optString("msg").takeIf { it in Alerts.SKINS }?.let { e.putString("skin_msg", it) }
+                o.optString("call").takeIf { it in Alerts.SKINS }?.let { e.putString("skin_call", it) }
+                if (o.has("popup")) e.putBoolean("n_popup", o.optBoolean("popup"))
+            } else {
+                val map = Alerts.skinMap(this@MainActivity)
+                val cur = map.optJSONObject(name) ?: JSONObject()
+                for (k in listOf("msg", "call")) if (o.has(k)) {
+                    val v = o.optString(k)
+                    if (v in Alerts.SKINS) cur.put(k, v) else cur.remove(k)
+                }
+                if (cur.length() == 0) map.remove(name) else map.put(name, cur)
+                e.putString("skin_map", map.toString())
+            }
+            e.apply()
+        }.let { }
+
+        /** 다른 앱 위에 표시 권한 (안드로이드 설정 화면) */
+        @JavascriptInterface
+        fun openOverlay() = main.post {
+            if (Build.VERSION.SDK_INT >= 23)
+                runCatching { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
+        }.let { }
+
+        /** Android 14+: 잠금 화면 위 전화 화면 허락 */
+        @JavascriptInterface
+        fun openFullScreen() = main.post {
+            if (Build.VERSION.SDK_INT >= 34)
+                runCatching { startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:$packageName"))) }
+                    .onFailure { openAppNotificationSettings() }
+        }.let { }
+
+        /** 배터리 최적화에서 빼 달라고 묻는다 (앱을 나가도 연락 받기가 더 잘 된다) */
+        @SuppressLint("BatteryLife")
+        @JavascriptInterface
+        fun openBattery() = main.post {
+            if (Build.VERSION.SDK_INT >= 23)
+                runCatching { startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) }
+                    .onFailure { runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
+        }.let { }
+
+        /** 안드로이드의 이 앱 알림 설정 (채널별로 끄기 등) */
+        @JavascriptInterface
+        fun openNotifySettings() = main.post { openAppNotificationSettings() }.let { }
 
         /** 설치 안내의 링크 (정해 둔 주소만 브라우저로 연다) */
         @JavascriptInterface

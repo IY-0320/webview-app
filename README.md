@@ -133,7 +133,16 @@ app/src/main/java/com/dreamland/webview/MainActivity.kt   웹뷰 두 장(첫 화
 app/src/main/java/com/dreamland/webview/Saver.kt           드림랜드의 내보내기 · 백업 받기 → 다운로드/Dreamland
 app/src/main/java/com/dreamland/webview/Voice.kt           드림랜드의 글 읽어 주기 · 말로 입력하기 → 안드로이드 음성 엔진
 app/src/main/java/com/dreamland/webview/Picker.kt          드림랜드의 고르기 칸 · 입력칸 추천 목록을 드림랜드 테마로
-app/src/main/assets/start.html                             첫 화면(꿈속으로 · 일어나기), 설정, 처음 질문, 설치 안내
+app/src/main/java/com/dreamland/webview/Notify.kt          드림랜드 대화 모드의 알림(Notification) · 걸려 오는 전화를 앱으로 잇는 통로
+app/src/main/java/com/dreamland/webview/Alerts.kt          폰 알림 · 소리 · 진동 (메시지 · 전화 · 부재중), 알림 꾸미기 설정
+app/src/main/java/com/dreamland/webview/CallActivity.kt    걸려 온 전화 화면 (잠금 화면 위에도)
+app/src/main/java/com/dreamland/webview/AwakeService.kt    앱을 나가도 연락 받기 (고정 알림 + 깨워 두기)
+app/src/main/java/com/dreamland/webview/Share.kt           다른 앱에서 공유 · 열기 한 파일 → 드림랜드 불러오기
+app/src/main/assets/start.html                             첫 화면(꿈속으로 · 일어나기), 설정(알림 · 화면 · 터묵스 …), 알림 꾸미기, 처음 질문, 설치 안내
+app/src/main/java/com/dreamland/webview/Overlay.kt         다른 앱 위 메시지 팝업 (고른 디자인, 안드로이드 화면 부품으로 그림)
+app/src/main/assets/call.html                              전화 화면 (디자인 5가지)
+app/src/main/assets/skins.css                              알림 · 전화 디자인 5가지 (드림랜드 · 카톡풍 · 라인풍 · 아이메시지풍 · 삼성풍)
+app/src/main/res/raw/*.wav                                 기본 알림 소리 · 벨소리 (tools/make-sounds.js 로 만듦)
 app/src/main/AndroidManifest.xml                           권한(인터넷 · 터묵스 실행 · 진동 · 마이크), http 허용, 앱 아이콘 길게 누르기 메뉴
 app/src/main/res/values/themes.xml                         앱 테마 (Android 15 edge-to-edge 끄기)
 app/src/main/res/values/strings.xml                        앱 이름, 메뉴 이름
@@ -144,4 +153,6 @@ app/build.gradle.kts                                       버전, 서명 설정
 docs/STATUS.md                                             작업 현황 (새 세션에서 먼저 읽기)
 CLAUDE.md                                                  Claude 세션이 처음에 읽는 안내 (STATUS.md 로 안내 + 규칙)
 tools/cdp*.js                                              폰의 WebView 를 개발자 도구로 들여다보는 시험용 스크립트 (디버그 빌드)
+tools/make-sounds.js                                       기본 알림 소리 · 벨소리 만들기 (node tools/make-sounds.js)
+tools/cdplog.js                                            드림랜드 화면의 콘솔 · 오류 · 중계 요청을 받아 적기 (디버그)
 ```

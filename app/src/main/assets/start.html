@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dreamland</title>
+<link rel="stylesheet" href="skins.css">
 <!--
   앱 첫 화면 (꿈속으로). 드림랜드 홈의 "성도" 칸(home.css .hm-hero / .hm-wheel)과
   fine.css 의 밤하늘·종이 색을 그대로 따라 만든다.
@@ -154,6 +155,47 @@ body.entering .stage { animation: dive .7s var(--out) forwards; }
 .sh-ft { display: flex; gap: 8px; padding: 14px 26px calc(var(--bottom) + 16px); border-top: 1px solid var(--s-line); }
 .sh-ft .btn { flex: 1; }
 .msg { min-height: 1.4em; margin-top: 8px; font-size: 13px; color: #b4553f; }
+/* ── 알림 ── */
+.row.link { width: 100%; text-align: left; border-top: 1px dashed var(--s-line); }
+.row.link:active { background: rgba(42, 37, 29, .04); }
+.chev { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--s-sub); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--s-line2); font-size: 13.5px; color: var(--s-ink); transition: background .2s, color .2s, border-color .2s; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--s-ink); border-color: var(--s-ink); color: var(--s-paper); }
+.chip[aria-pressed="true"]::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; vertical-align: 1px; background: var(--pink-soft); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
+.chip:active { background: var(--s-line); }
+.row.times { gap: 10px; align-items: flex-end; }
+.row.times label { flex: 1; display: flex; flex-direction: column; gap: 6px; font: 400 10px var(--mono); letter-spacing: .24em; color: var(--s-sub); }
+.row.times .tilde { padding-bottom: 12px; color: var(--s-sub); }
+.row.times.off { opacity: .45; }
+.tip { margin: 6px 0 14px; padding: 14px 16px; border-radius: 8px; background: rgba(217, 138, 158, .08); border: 1px solid rgba(217, 138, 158, .22); font-size: 13px; line-height: 1.65; color: var(--s-ink); }
+.tip p { margin: 0 0 6px; }
+.tip p.sub { margin: 8px 0 0; color: var(--s-sub); font-size: 12px; }
+.tip ol { margin: 0; padding-left: 18px; color: var(--s-sub); }
+.tip li + li { margin-top: 4px; }
+.tip b { color: var(--s-ink); font-weight: 600; }
+/* 첫 화면을 보고 있을 때 온 연락: 위에서 미끄러져 내려오는 종이 카드 */
+.banner { position: fixed; z-index: 30; left: 12px; right: 12px; top: calc(var(--top) + 10px); display: block; padding: 0; text-align: left;
+  transform: translateY(calc(-100% - var(--top) - 24px)); transition: transform .5s var(--out); }
+.banner.on { transform: none; }
+/* 알림 꾸미기: 디자인 고르기 (skins.css 그대로 그린 미리보기) */
+.skins { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 10px; margin: 0 -2px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+.skin-pick { flex: none; align-self: flex-start; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; gap: 8px; border-radius: 14px; padding: 8px; border: 1.5px solid transparent; }
+.skin-pick[aria-pressed="true"] { border-color: var(--pink); background: rgba(217, 138, 158, .08); }
+.skin-pick > span { font-size: 12.5px; color: var(--s-sub); }
+.skin-pick[aria-pressed="true"] > span { color: var(--s-ink); font-weight: 600; }
+.skin-pick.msgp { width: 270px; }
+.skin-pick.msgp .stage-mc { width: 100%; padding: 10px; border-radius: 10px; background: linear-gradient(160deg, #6d7a8c, #3f4654); pointer-events: none; }
+.skin-pick.callp .phone { width: 120px; height: 250px; border-radius: 16px; overflow: hidden; position: relative; pointer-events: none; box-shadow: 0 0 0 1px var(--s-line2); }
+.skin-pick.callp iframe { position: absolute; left: 0; top: 0; width: 375px; height: 781px; border: 0; transform: scale(.32); transform-origin: 0 0; }
+.who { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; text-align: left; border-top: 1px dashed var(--s-line); }
+.who:first-child { border-top: 0; }
+.who .wf { flex: none; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #1d1a16; color: var(--pink-soft); font: 400 16px var(--serif); }
+.who .wf img { width: 100%; height: 100%; object-fit: cover; }
+.who .wt { flex: 1; min-width: 0; }
+.who .wn { display: block; font-weight: 600; font-size: 15px; }
+.who .ws { display: block; font-size: 12px; color: var(--s-sub); margin-top: 2px; }
+.empty { font-size: 13px; color: var(--s-sub); padding: 6px 0 10px; }
 .toast { position: fixed; z-index: 20; left: 50%; bottom: calc(var(--bottom) + 28px); transform: translate(-50%, 20px); padding: 10px 16px; border-radius: 99px; background: rgba(236, 231, 218, .94); color: #17150f; font-size: 13.5px; opacity: 0; transition: opacity .3s, transform .3s var(--out); pointer-events: none; white-space: nowrap; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 /* ── 처음 질문: 드림랜드 홈의 "FIRST STEPS" 카드를 따라 ── */
@@ -357,6 +399,39 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   </div>
   <div class="sh-bd">
     <div class="sec">
+      <h3>NOTIFY</h3>
+      <div class="row">
+        <div class="tx"><div class="nm">메시지 알림</div><div class="ds">대화 모드에서 화면을 안 보고 있을 때 온 연락을 폰 알림으로 받아요. 드림랜드의 "알림으로 받기"도 켜져 있어야 해요.</div></div>
+        <button class="sw" role="switch" id="nMsg" aria-checked="true"></button>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">전화 알림</div><div class="ds">캐릭터가 전화를 걸면 전화 화면을 띄우고 벨이 울려요.</div></div>
+        <button class="sw" role="switch" id="nCall" aria-checked="true"></button>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">앱을 나가도 연락 받기</div><div class="ds">위에 작은 고정 알림을 띄워 두고 드림랜드를 깨워 둬요. 배터리를 조금 더 써요.</div></div>
+        <button class="sw" role="switch" id="nAwake" aria-checked="false"></button>
+      </div>
+      <div class="row" id="nPermRow">
+        <div class="tx"><div class="nm">알림 권한</div><div class="ds" id="nPermDs">폰이 이 앱의 알림을 보여 주도록 허락해요.</div></div>
+        <span class="st" id="nPermSt">—</span>
+        <button class="btn sm" id="nPermAsk" hidden>허용하기</button>
+      </div>
+      <button class="row link" id="nMore">
+        <div class="tx"><div class="nm">알림 꾸미기</div><div class="ds">소리 · 진동 · 벨소리 · 잠금 화면 · 조용한 시간 · 시험해 보기</div></div>
+        <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <div class="sec">
+      <h3>SCREEN</h3>
+      <div class="row">
+        <div class="tx"><div class="nm">대화 중 화면 켜 두기</div><div class="ds">드림랜드를 보는 동안 화면이 저절로 꺼지지 않아요. 긴 답장이나 읽어 주기를 들을 때 편해요.</div></div>
+        <button class="sw" role="switch" id="keepScreen" aria-checked="false"></button>
+      </div>
+    </div>
+
+    <div class="sec">
       <h3>TERMUX</h3>
       <div class="row">
         <div class="tx"><div class="nm">터묵스 화면으로 이동</div><div class="ds">깨울 때 터묵스 창을 보여 줘요. 끄면 뒤에서 조용히 켜지고 여기서 기다려요.</div></div>
@@ -423,6 +498,178 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
     <button class="btn p" id="save">완료</button>
   </div>
 </section>
+
+<!-- 알림 꾸미기 -->
+<section class="sheet tall" id="notifySheet" aria-label="알림 꾸미기">
+  <div class="sh-hd">
+    <div class="t"><div class="kick">NOTIFY</div><h2>알림 꾸미기</h2></div>
+    <button class="x" id="nBack" aria-label="설정으로"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="sh-bd">
+    <div class="sec">
+      <h3>DESIGN</h3>
+      <div class="row col">
+        <div class="tx"><div class="nm">메시지 디자인</div><div class="ds">첫 화면 카드와 다른 앱 위 팝업이 이 모양으로 떠요. 캐릭터마다 따로 고를 수도 있어요.</div></div>
+        <div class="skins" id="skMsg"></div>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">전화 디자인</div><div class="ds">걸려 온 전화 화면 모양이에요. 누르고 "전화 시험"으로 확인해 보세요.</div></div>
+        <div class="skins" id="skCall"></div>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">다른 앱 위에 팝업</div><div class="ds" id="popDs">홈 화면이나 다른 앱을 쓰는 중에도 고른 디자인으로 팝업이 떠요. 알림창에는 보통 알림도 남아요.</div></div>
+        <button class="btn sm" id="popAsk" hidden>허락하기</button>
+        <button class="sw" role="switch" id="nPopup" aria-checked="true"></button>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">캐릭터마다</div><div class="ds">연락이 온 적 있는 캐릭터예요. 눌러서 그 캐릭터만 다른 디자인으로 바꿀 수 있어요.</div></div>
+        <div id="whoList"></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>MESSAGE</h3>
+      <div class="row col">
+        <div class="tx"><div class="nm">알림 방식</div><div class="ds">폰이 무음 · 진동 모드거나 방해 금지 중이면 폰 설정을 따라요.</div></div>
+        <div class="chips" data-key="mode">
+          <button class="chip" data-v="both">소리 + 진동</button><button class="chip" data-v="sound">소리만</button>
+          <button class="chip" data-v="vibe">진동만</button><button class="chip" data-v="silent">조용히</button>
+        </div>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">알림 소리</div><div class="ds">누르면 들려 드려요.</div></div>
+        <div class="chips" data-key="sound" data-play="msg">
+          <button class="chip" data-v="moonbell">달빛 종</button><button class="chip" data-v="star">별똥별</button>
+          <button class="chip" data-v="drop">물방울</button><button class="chip" data-v="musicbox">오르골</button>
+          <button class="chip own" data-v="custom" hidden></button>
+        </div>
+        <div class="acts"><button class="btn sm" data-pick="msg">내 소리 파일 고르기</button></div>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">진동 무늬</div><div class="ds">누르면 한 번 울려 드려요.</div></div>
+        <div class="chips" data-key="vibe" data-play="vibe">
+          <button class="chip" data-v="tap">톡</button><button class="chip" data-v="double">톡톡</button>
+          <button class="chip" data-v="long">길게</button><button class="chip" data-v="heart">두근두근</button>
+        </div>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">잠금 화면에서</div><div class="ds">폰이 잠겨 있을 때 알림에 보이는 것</div></div>
+        <div class="chips" data-key="preview">
+          <button class="chip" data-v="full">이름과 내용</button><button class="chip" data-v="name">이름만</button><button class="chip" data-v="hide">숨기기</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">첫 화면에서는 카드로</div><div class="ds">앱 첫 화면(꿈속으로)을 보고 있을 때는 폰 알림 대신 화면 위에 작은 카드로 보여 줘요.</div></div>
+        <button class="sw" role="switch" id="nBanner" aria-checked="true"></button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>CALL</h3>
+      <div class="row col">
+        <div class="tx"><div class="nm">벨소리</div><div class="ds">누르면 한 마디 들려 드려요.</div></div>
+        <div class="chips" data-key="ring" data-play="call">
+          <button class="chip" data-v="dream">꿈결 벨</button><button class="chip" data-v="calm">고요한 벨</button>
+          <button class="chip own" data-v="custom" hidden></button>
+        </div>
+        <div class="acts"><button class="btn sm" data-pick="call">내 벨소리 파일 고르기</button></div>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">전화 올 때 진동</div></div>
+        <button class="sw" role="switch" id="nRingVibe" aria-checked="true"></button>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">다른 앱을 쓸 때도 전화 화면</div><div class="ds" id="nCallFullDs">켜면 홈 화면이나 다른 앱을 쓰는 중에도 고른 디자인의 전화 화면이 바로 떠요. 끄면 위에 삼성 전화 알림(거절 · 통화)만 뜨고, 눌러야 전화 화면이 열려요.</div></div>
+        <button class="sw" role="switch" id="nCallFull" aria-checked="true"></button>
+      </div>
+      <div class="row" id="nFullRow">
+        <div class="tx"><div class="nm">잠금 화면 위 전화 화면</div><div class="ds">폰이 잠겨 있거나 화면이 꺼져 있을 때 전화 화면을 바로 띄워요. 허락하지 않으면 알림으로만 울려요.</div></div>
+        <span class="st" id="nFullSt">—</span>
+        <button class="btn sm" id="nFullAsk" hidden>허락하기</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>QUIET</h3>
+      <div class="row">
+        <div class="tx"><div class="nm">조용한 시간</div><div class="ds">이 시간에는 소리와 진동 없이 알림만 와요.</div></div>
+        <button class="sw" role="switch" id="nQuiet" aria-checked="false"></button>
+      </div>
+      <div class="row times">
+        <label>부터<input class="fld" type="time" id="nFrom" value="23:00"></label>
+        <span class="tilde">~</span>
+        <label>까지<input class="fld" type="time" id="nTo" value="07:00"></label>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>BACKGROUND</h3>
+      <div class="row">
+        <div class="tx"><div class="nm">배터리 최적화에서 빼기</div><div class="ds">"앱을 나가도 연락 받기"를 켰는데 연락이 늦게 오면 허락해 주세요.</div></div>
+        <span class="st" id="nBatSt">—</span>
+        <button class="btn sm" id="nBatAsk" hidden>허락하기</button>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">안드로이드 알림 설정</div><div class="ds">메시지 · 전화 · 부재중 전화 · 깨어 있음 알림을 하나씩 끄거나 바꿀 수 있어요.</div></div>
+        <button class="btn sm" id="nSys">열기</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>TRY</h3>
+      <div class="row col">
+        <div class="tx"><div class="nm">시험해 보기</div><div class="ds">전화 시험은 3초 뒤에 울려요. 그사이 앱을 나가거나 화면을 꺼 봐도 돼요.</div></div>
+        <div class="acts"><button class="btn sm" id="tMsg">메시지 알림 시험</button><button class="btn sm" id="tPop">팝업 시험</button><button class="btn sm" id="tCall">전화 시험</button></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>DREAMLAND</h3>
+      <div class="tip">
+        <p>알림과 전화는 <b>드림랜드가 보내는 것</b>을 받아서 보여 줘요. 드림랜드에서 이것들이 켜져 있어야 해요.</p>
+        <ol>
+          <li>대화방을 <b>대화 모드</b>로</li>
+          <li>대화방 위 <b>⋯</b> 메뉴 › <b>대화 모드 설정</b> › <b>"먼저 오는 연락"</b> 탭 아래쪽의 <b>"화면을 안 보고 있을 때 온 연락을 브라우저 알림으로 받기"</b> (드림랜드 설정의 "대화 모드: … 알림으로 받기"와 같은 스위치예요)</li>
+          <li>앱을 나가 있어도 먼저 연락을 받으려면: 같은 탭의 <b>"내가 조용하면 캐릭터가 먼저 말 걸기"</b>와, 그 아래 분 · 시간 칸들 밑의 <b>"화면을 안 보고 있을 때도 보내기"</b></li>
+          <li>전화: 전화 설정 › <b>"대화 중에 캐릭터가 직접 전화 걸기"</b>. (드림랜드의 "캐릭터가 먼저 전화하기"는 드림랜드를 보고 있을 때만 걸려 와요)</li>
+        </ol>
+        <p class="sub">이 설정들은 원래 드림랜드에 있는 것이고, 앱은 바꾸지 않아요.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 캐릭터 한 명의 디자인 -->
+<section class="sheet" id="whoSheet" aria-label="캐릭터 디자인">
+  <div class="sh-hd">
+    <div class="t"><div class="kick">DESIGN</div><h2 id="whoTitle">캐릭터</h2></div>
+    <button class="x" id="whoBack" aria-label="알림 꾸미기로"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="sh-bd">
+    <div class="sec">
+      <div class="row col">
+        <div class="tx"><div class="nm">메시지</div></div>
+        <div class="chips" id="whoMsg"></div>
+      </div>
+      <div class="row col">
+        <div class="tx"><div class="nm">전화</div></div>
+        <div class="chips" id="whoCall"></div>
+      </div>
+      <div class="row">
+        <div class="tx"><div class="nm">이 디자인으로 시험</div><div class="ds">팝업 · 전화는 3초 뒤에 떠요. 팝업은 앱을 나가야 보여요.</div></div>
+        <div class="acts"><button class="btn sm" id="whoTPop">팝업</button><button class="btn sm" id="whoTCall">전화</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 첫 화면을 보고 있을 때 온 연락 (폰 알림 대신) -->
+<button class="banner" id="banner" aria-live="polite">
+  <span class="mc skin-dream" id="bnCard">
+    <span class="mc-app"><i class="mc-ic"></i><span class="mc-appname" id="bnApp">DREAMLAND</span><span class="mc-time">지금</span></span>
+    <span class="mc-row"><span class="mc-face" id="bnFace"></span><span class="mc-tx"><b class="mc-name" id="bnName"></b><span class="mc-body" id="bnBody"></span></span></span>
+  </span>
+</button>
 
 <!-- 접속 키 (--lan 으로 켠 다른 기기의 드림랜드) -->
 <section class="sheet" id="keySheet" aria-label="접속 키">
@@ -567,7 +814,13 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   // 네이티브 → 화면
   window.dl = {
     onState(s) { st = s; if (s.cfg) cfg = s.cfg; render(); if (s.state === 'key') openSheet('keySheet'); },
-    refreshCfg() { loadCfg(); if ($('settings').classList.contains('on')) fillLink(); render(); },
+    refreshCfg() {
+      loadCfg(); if ($('settings').classList.contains('on')) fillLink();
+      // 안드로이드 설정(알림 · 전화 화면 · 배터리)에 다녀왔을 수 있다
+      if ($('settings').classList.contains('on') || $('notifySheet').classList.contains('on')) { loadNotify(); fillNotify(); }
+      if ($('notifySheet').classList.contains('on')) { loadSkins(); fillSkins(); }
+      render();
+    },
     onKeyResult(r) { $('keyMsg').textContent = r.ok ? '' : r.msg || '키가 맞지 않아요.'; $('keyGo').disabled = false; if (r.ok) closeSheets(); },
     onInsets(t, b) { document.documentElement.style.setProperty('--top', t + 'px'); document.documentElement.style.setProperty('--bottom', b + 'px'); },
     openSettings() { openSheet('settings'); },
@@ -616,8 +869,10 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
 
   // ── 시트 ──
   function openSheet(id) {
+    const back = $('whoSheet').classList.contains('on');   // 캐릭터 디자인에서 돌아올 때는 보던 자리 그대로
     closeSheets(true);
     if (id === 'settings') fillSettings();
+    if (id === 'notifySheet') { loadNotify(); fillNotify(); loadSkins(); fillSkins(); if (!back) $('notifySheet').querySelector('.sh-bd').scrollTop = 0; }
     if (id === 'guide') { loadCfg(); fillGuide(); }
     if (id === 'keySheet') { $('keyMsg').textContent = ''; setTimeout(() => $('key').focus(), 350); }
     $('veil').classList.add('on'); $(id).classList.add('on');
@@ -625,6 +880,7 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   function closeSheets(keepVeil) {
     // 설정은 닫을 때(X · 바깥 · 뒤로가기 모두) 한 번 더 저장한다
     if ($('settings').classList.contains('on')) saveNow();
+    if ($('notifySheet').classList.contains('on')) call('stopPreview');
     document.querySelectorAll('.sheet.on').forEach(s => s.classList.remove('on'));
     if (!keepVeil) $('veil').classList.remove('on');
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
@@ -643,7 +899,163 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
     $('port').classList.remove('bad');
     fillLink();
     fillUpdate();
+    loadNotify(); fillNotify();
   }
+
+  // ── 알림 · 전화 · 화면 ── (앱 설정에 바로 저장. 드림랜드 설정은 건드리지 않는다)
+  let nc = {};
+  const on = id => $(id).getAttribute('aria-checked') === 'true';
+  function loadNotify() {
+    try { nc = JSON.parse(call('getNotify') || '{}'); } catch (e) { nc = {}; }
+    if (!N) nc = { msg: true, call: true, awake: false, mode: 'both', sound: 'moonbell', soundName: '', vibe: 'double', preview: 'full', banner: true, ring: 'dream', ringName: '',
+      ringVibe: true, quietOn: false, quietFrom: '23:00', quietTo: '07:00', keepScreen: false, perm: 'default', fullScreen: false, fullScreenAsk: true, battery: false };
+  }
+  function saveNotify(patch) { Object.assign(nc, patch); call('saveNotify', JSON.stringify(patch)); }
+  function fillNotify() {
+    sw('nMsg', nc.msg); sw('nCall', nc.call); sw('nAwake', nc.awake); sw('keepScreen', nc.keepScreen);
+    sw('nBanner', nc.banner); sw('nRingVibe', nc.ringVibe); sw('nCallFull', nc.callFull !== false);
+    $('nCallFullDs').textContent = nc.overlay === false ? '디자인 칸에서 "다른 앱 위에 팝업"을 허락하고 "앱을 나가도 연락 받기"를 켜야 돼요. 그전에는 삼성 전화 알림으로 와요.'
+      : '켜면 홈 화면이나 다른 앱을 쓰는 중에도 고른 디자인의 전화 화면이 바로 떠요. 끄면 위에 삼성 전화 알림(거절 · 통화)만 뜨고, 눌러야 전화 화면이 열려요.'; sw('nQuiet', nc.quietOn);
+    const p = nc.perm;
+    chip($('nPermSt'), p === 'granted', '허용됨', '꺼짐');
+    $('nPermAsk').hidden = p === 'granted'; $('nPermAsk').textContent = p === 'denied' ? '설정 열기' : '허용하기';
+    $('nPermDs').textContent = p === 'denied' ? '알림이 꺼져 있어요. 안드로이드 설정에서 이 앱의 알림을 켜 주세요.' : '폰이 이 앱의 알림을 보여 주도록 허락해요.';
+    document.querySelectorAll('#notifySheet .chips').forEach(g => {
+      const k = g.dataset.key, own = g.querySelector('.own');
+      if (own) { const nm = k === 'ring' ? nc.ringName : nc.soundName; own.hidden = !nm; own.textContent = nm ? '♪ ' + nm : ''; }
+      g.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === nc[k])));
+    });
+    $('nPermSt').hidden = p !== 'granted';
+    $('nFullRow').hidden = !nc.fullScreenAsk;
+    // 허락됐으면 상태만, 아니면 단추만 (좁은 화면에서 글이 눌리지 않게)
+    chip($('nFullSt'), nc.fullScreen, '허락됨', '꺼짐'); $('nFullAsk').hidden = !!nc.fullScreen; $('nFullSt').hidden = !nc.fullScreen;
+    chip($('nBatSt'), nc.battery, '빠짐', '최적화 중'); $('nBatAsk').hidden = !!nc.battery; $('nBatSt').hidden = !nc.battery;
+    $('nFrom').value = nc.quietFrom || '23:00'; $('nTo').value = nc.quietTo || '07:00';
+    document.querySelector('#notifySheet .row.times').classList.toggle('off', !nc.quietOn);
+  }
+  [['nMsg', 'msg'], ['nCall', 'call'], ['nAwake', 'awake'], ['keepScreen', 'keepScreen'], ['nBanner', 'banner'], ['nRingVibe', 'ringVibe'], ['nCallFull', 'callFull'], ['nQuiet', 'quietOn']].forEach(([id, k]) =>
+    $(id).addEventListener('click', () => {
+      const v = !on(id); sw(id, v); saveNotify({ [k]: v }); fillNotify();
+      if (v && k === 'awake') toast('드림랜드에 들어가 있는 동안 위에 작은 알림이 떠요');
+    }));
+  document.querySelectorAll('#notifySheet .chips').forEach(g => g.addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if (!c) return;
+    saveNotify({ [g.dataset.key]: c.dataset.v }); fillNotify();
+    if (g.dataset.play) call('previewSound', g.dataset.play, c.dataset.v);
+  }));
+  document.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => call('pickSound', b.dataset.pick)));
+  ['nFrom', 'nTo'].forEach(id => $(id).addEventListener('change', () => { if ($(id).value) saveNotify({ [id === 'nFrom' ? 'quietFrom' : 'quietTo']: $(id).value }); }));
+  $('nPermAsk').addEventListener('click', () => call('askNotify'));
+  $('nFullAsk').addEventListener('click', () => call('openFullScreen'));
+  $('nBatAsk').addEventListener('click', () => call('openBattery'));
+  $('nSys').addEventListener('click', () => call('openNotifySettings'));
+  $('tMsg').addEventListener('click', () => call('testNotify', 'msg', ''));
+  $('tCall').addEventListener('click', () => { call('testNotify', 'call', ''); toast('3초 뒤에 울려요'); });
+  $('tPop').addEventListener('click', () => testPop(''));
+  function testPop(sk) {
+    if (!sg.overlay) { toast('먼저 "다른 앱 위에 팝업"을 허락해 주세요'); return; }
+    if (!sg.awake) { toast('팝업은 "앱을 나가도 연락 받기"를 켜야 떠요'); return; }
+    call('testNotify', 'popup', sk); toast('3초 안에 홈 화면으로 나가 보세요');
+  }
+
+  // ── 디자인 (skins.css) ──
+  const SKIN_NAMES = { dream: '드림랜드', kakao: '카톡풍', line: '라인풍', imsg: '아이메시지풍', samsung: '삼성 메시지풍' };
+  const CALL_NAMES = { dream: '드림랜드', kakao: '카톡풍', line: '라인풍', imsg: '아이폰풍', samsung: '갤럭시풍' };
+  const APP_NAMES = { dream: 'DREAMLAND', kakao: '드림톡', line: 'DREAM', imsg: '메시지', samsung: '메시지' };
+  let sg = { msg: 'dream', call: 'dream', popup: true, overlay: false, seen: [] }, who = null;
+  const faceEl = (el, name, face) => { if (face) { const i = new Image(); i.src = face; i.alt = ''; el.replaceChildren(i); } else el.textContent = [...(name || '').trim()][0] || '✦'; };
+  function mcCard(sk, name, body) {
+    return '<div class="mc skin-' + sk + '"><div class="mc-app"><i class="mc-ic"></i><span class="mc-appname">' + APP_NAMES[sk] + '</span><span class="mc-time">지금</span></div>'
+      + '<div class="mc-row"><span class="mc-face">' + esc([...name][0]) + '</span><span class="mc-tx"><b class="mc-name">' + esc(name) + '</b><span class="mc-body">' + esc(body) + '</span></span></div></div>';
+  }
+  function loadSkins() {
+    try { sg = JSON.parse(call('getSkins') || '{}'); } catch (e) {}
+    if (!N) sg = { msg: 'dream', call: 'dream', popup: true, overlay: false, seen: [{ name: '드림랜드', face: '', msg: 'kakao' }] };
+    sg.seen = sg.seen || [];
+  }
+  function buildSkins() {
+    // 한 번만 그린다 (전화 미리보기는 call.html 을 작게 띄운 것)
+    if ($('skMsg').childElementCount) return;
+    for (const sk of Object.keys(SKIN_NAMES)) {
+      const m = document.createElement('button'); m.className = 'skin-pick msgp'; m.dataset.v = sk;
+      m.innerHTML = '<div class="stage-mc">' + mcCard(sk, '드림랜드', '오늘 하루 어땠어? 나는 방금 산책 다녀왔어') + '</div><span>' + SKIN_NAMES[sk] + '</span>';
+      m.addEventListener('click', () => { sg.msg = sk; call('saveSkin', JSON.stringify({ msg: sk })); fillSkins(); });
+      $('skMsg').appendChild(m);
+      const c = document.createElement('button'); c.className = 'skin-pick callp'; c.dataset.v = sk;
+      c.innerHTML = '<div class="phone"><iframe src="call.html#' + sk + '" tabindex="-1"></iframe></div><span>' + CALL_NAMES[sk] + '</span>';
+      c.addEventListener('click', () => { sg.call = sk; call('saveSkin', JSON.stringify({ call: sk })); fillSkins(); });
+      $('skCall').appendChild(c);
+    }
+  }
+  function fillSkins() {
+    buildSkins();
+    $('skMsg').querySelectorAll('.skin-pick').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === sg.msg)));
+    $('skCall').querySelectorAll('.skin-pick').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === sg.call)));
+    sw('nPopup', sg.popup);
+    $('nPopup').hidden = !sg.overlay; $('popAsk').hidden = !!sg.overlay;
+    $('popDs').textContent = sg.overlay ? (sg.awake ? '홈 화면이나 다른 앱을 쓰는 중에도 고른 디자인으로 팝업이 떠요. 알림창에는 보통 알림도 남아요.' : '설정의 "앱을 나가도 연락 받기"를 켜야 팝업이 떠요. 꺼져 있으면 보통 알림으로 와요.')
+      : '"다른 앱 위에 표시"를 허락하면 홈 화면이나 다른 앱 위에도 고른 디자인으로 팝업이 떠요.';
+    const L = $('whoList'); L.replaceChildren();
+    if (!sg.seen.length) { L.innerHTML = '<div class="empty">아직 연락이 온 캐릭터가 없어요. 대화 모드에서 연락이 오면 여기 생겨요.</div>'; return; }
+    for (const p of sg.seen) {
+      const b = document.createElement('button'); b.className = 'who';
+      b.innerHTML = '<span class="wf"></span><span class="wt"><span class="wn"></span><span class="ws"></span></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>';
+      faceEl(b.querySelector('.wf'), p.name, p.face);
+      b.querySelector('.wn').textContent = p.name;
+      b.querySelector('.ws').textContent = '메시지 ' + (p.msg ? SKIN_NAMES[p.msg] : '기본') + ' · 전화 ' + (p.call ? CALL_NAMES[p.call] : '기본');
+      b.addEventListener('click', () => openWho(p));
+      L.appendChild(b);
+    }
+  }
+  $('nPopup').addEventListener('click', () => { const v = !on('nPopup'); sw('nPopup', v); sg.popup = v; call('saveSkin', JSON.stringify({ popup: v })); });
+  $('popAsk').addEventListener('click', () => call('openOverlay'));
+  function chipsFor(el, names, cur, key) {
+    el.replaceChildren();
+    for (const [v, label] of [['', '기본 따라가기'], ...Object.entries(names)]) {
+      const c = document.createElement('button'); c.className = 'chip'; c.textContent = label;
+      c.setAttribute('aria-pressed', String((cur || '') === v));
+      c.addEventListener('click', () => { who[key] = v; call('saveSkin', JSON.stringify({ name: who.name, [key]: v })); chipsFor(el, names, v, key); });
+      el.appendChild(c);
+    }
+  }
+  function openWho(p) {
+    who = p; $('whoTitle').textContent = p.name;
+    chipsFor($('whoMsg'), SKIN_NAMES, p.msg, 'msg');
+    chipsFor($('whoCall'), CALL_NAMES, p.call, 'call');
+    openSheet('whoSheet');
+  }
+  $('whoBack').addEventListener('click', () => openSheet('notifySheet'));
+  $('whoTPop').addEventListener('click', () => testPop(who && who.msg || sg.msg));
+  $('whoTCall').addEventListener('click', () => { call('testNotify', 'call', who && who.call || sg.call); toast('3초 뒤에 울려요'); });
+  $('nMore').addEventListener('click', () => openSheet('notifySheet'));
+  $('nBack').addEventListener('click', () => openSheet('settings'));
+  window.dl.onNotifyPerm = p => { nc.perm = p; fillNotify(); toast(p === 'granted' ? '이제 알림을 받을 수 있어요' : '알림 권한이 꺼져 있어요'); };
+  window.dl.onSound = r => {
+    if (r.cfg && r.cfg.notify) nc = r.cfg.notify;
+    fillNotify();
+    toast(r.ok ? `${r.name} 으로 바꿨어요` : '소리 파일을 읽지 못했어요');
+    if (r.ok) call('previewSound', r.kind, 'custom');
+  };
+
+  // 첫 화면을 보고 있을 때 온 연락: 위에서 내려오는 카드. 누르면 꿈속으로, 위로 밀면 닫힘
+  let bnT, bnY = null;
+  window.dl.banner = o => {
+    const sk = SKIN_NAMES[o.skin] ? o.skin : 'dream';
+    $('bnCard').className = 'mc skin-' + sk; $('bnApp').textContent = APP_NAMES[sk];
+    $('bnName').textContent = o.name || '드림랜드';
+    $('bnBody').textContent = o.body || '새 연락이 왔어요';
+    const f = $('bnFace');
+    if (o.face) { const i = new Image(); i.src = o.face; i.alt = ''; f.replaceChildren(i); }
+    else f.textContent = [...(o.name || '').trim()][0] || '✦';
+    $('banner').classList.add('on');
+    clearTimeout(bnT); bnT = setTimeout(() => $('banner').classList.remove('on'), 6000);
+  };
+  $('banner').addEventListener('click', () => {
+    $('banner').classList.remove('on');
+    if (!['waking', 'checking', 'sleeping', 'installing'].includes(st.state)) { closeSheets(); call('enter'); }
+  });
+  $('banner').addEventListener('touchstart', e => { bnY = e.touches[0].clientY; }, { passive: true });
+  $('banner').addEventListener('touchmove', e => { if (bnY != null && e.touches[0].clientY - bnY < -24) { bnY = null; $('banner').classList.remove('on'); } }, { passive: true });
   function fillLink() {
     const i = $('stInstalled'), p = $('stPerm');
     i.textContent = cfg.installed ? '설치됨' : '없음'; i.className = 'st ' + (cfg.installed ? 'ok' : 'no');
@@ -860,7 +1272,13 @@ body.installing .go { animation: breathe 2.6s ease-in-out infinite; }
   $('pop').addEventListener('click', e => { if (e.target === $('pop')) closePop(); });
   $('popGo').addEventListener('click', () => { closePop(); call('openUrl', popUrl); });
   const _back = window.dl.back;
-  window.dl.back = () => { if ($('pop').classList.contains('on')) { closePop(); return true; } return _back(); };
+  window.dl.back = () => {
+    if ($('pop').classList.contains('on')) { closePop(); return true; }
+    if ($('banner').classList.contains('on')) { $('banner').classList.remove('on'); return true; }
+    if ($('whoSheet').classList.contains('on')) { openSheet('notifySheet'); return true; }   // 캐릭터 디자인 → 알림 꾸미기로
+    if ($('notifySheet').classList.contains('on')) { openSheet('settings'); return true; }   // 알림 꾸미기 → 설정으로
+    return _back();
+  };
 
   loadCfg(); introOn = cfg.onboarded === false; render();
   call('ready');
