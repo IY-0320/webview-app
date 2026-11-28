@@ -1,0 +1,216 @@
+<style>
+/* ───── 드림랜드 앱 알림 · 전화 설정 안내 (깡통 글꾸, 하늘 · 분홍) ───── */
+.dlg, .dlg *{box-sizing:border-box;margin:0;padding:0;}
+.dlg{
+  max-width:760px; margin:0 auto; padding:clamp(14px,4vw,28px) clamp(10px,3.5vw,22px) 40px;
+  font-family:'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+  line-height:1.75; word-break:keep-all; overflow-wrap:anywhere;
+  font-size:clamp(14px,3.6vw,15.5px);
+}
+/* 글자색 규칙: ① 모든 요소의 글자 채움색은 글자색을 따름 ② class 선택자만 사용 ③ 글자마다 인라인으로 색을 한 번 더 고정 */
+.dlg{color:#2b3150;color:#2b3150 !important;}
+.dlg,.dlg *,.dlg *:before,.dlg *:after{-webkit-text-fill-color:currentColor !important;}
+.dlg p,.dlg li,.dlg span,.dlg b,.dlg small,.dlg h2,.dlg h3,.dlg summary,.dlg a{color:inherit;color:inherit !important;}
+
+@keyframes dlgRise{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:none;}}
+@supports (animation-timeline: view()){
+  .dlg .dlg-reveal{animation:dlgRise linear both;animation-timeline:view();animation-range:entry 0% entry 35%;}
+}
+
+/* 머리: 하늘 → 분홍 판 */
+.dlg .dlg-hero{position:relative;border-radius:22px;padding:clamp(20px,5.5vw,34px) clamp(16px,5vw,30px);
+  background:linear-gradient(135deg,#9fd4ff 0%,#c3dcff 45%,#ffc6da 100%);clip-path:inset(0 round 22px);isolation:isolate;
+  box-shadow:0 18px 40px -22px rgba(120,140,200,.55);}
+.dlg .dlg-blob{position:absolute;border-radius:50%;filter:blur(38px);z-index:-1;}
+.dlg .dlg-blob.a{width:min(210px,52%);aspect-ratio:1;background:#ffffff;opacity:.55;top:0;right:0;animation:dlgFloatA 10s ease-in-out infinite;}
+.dlg .dlg-blob.b{width:min(170px,46%);aspect-ratio:1;background:#ff9fc0;opacity:.45;bottom:0;left:0;animation:dlgFloatB 12s ease-in-out infinite;}
+@keyframes dlgFloatA{0%,100%{transform:translate(0,0);}50%{transform:translate(-18px,14px);}}
+@keyframes dlgFloatB{0%,100%{transform:translate(0,0);}50%{transform:translate(18px,-14px);}}
+.dlg .dlg-kicker{display:inline-flex;align-items:center;gap:7px;font-size:.72em;font-weight:700;letter-spacing:.14em;padding:4px 11px;border-radius:999px;
+  background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.95);color:#d2668a;color:#d2668a !important;}
+.dlg .dlg-dot{width:6px;height:6px;border-radius:50%;background:#ff7fa8;animation:dlgPulse 2.4s infinite;}
+@keyframes dlgPulse{0%{box-shadow:0 0 0 0 rgba(255,127,168,.6);}100%{box-shadow:0 0 0 9px rgba(255,127,168,0);}}
+.dlg .dlg-h2{margin-top:12px;font-size:clamp(22px,6.2vw,30px);font-weight:800;letter-spacing:-.01em;line-height:1.3;color:#1f2547;color:#1f2547 !important;}
+.dlg .dlg-lead{margin-top:8px;font-size:.95em;color:#3d4568;color:#3d4568 !important;}
+.dlg .dlg-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
+.dlg .dlg-chip{font-size:.78em;font-weight:700;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.9);color:#4a5480;color:#4a5480 !important;}
+
+/* 단계 카드 */
+.dlg .dlg-steps{display:grid;gap:14px;margin-top:18px;}
+.dlg .dlg-step{position:relative;border-radius:18px;background:#ffffff;border:1px solid #dfe6f5;padding:clamp(16px,4.6vw,22px);
+  box-shadow:0 10px 26px -20px rgba(90,110,180,.45);}
+.dlg .dlg-step-hd{display:flex;align-items:center;gap:12px;}
+.dlg .dlg-num{flex:none;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-weight:800;font-size:.95em;
+  background:linear-gradient(135deg,#7fb8f0,#f39abb);color:#ffffff;color:#ffffff !important;box-shadow:0 6px 14px -8px rgba(240,120,160,.8);}
+.dlg .dlg-step-t{font-weight:800;font-size:1.05em;line-height:1.4;color:#1f2547;color:#1f2547 !important;}
+.dlg .dlg-path{display:block;font-size:.78em;font-weight:600;color:#7d86b0;color:#7d86b0 !important;}
+.dlg .dlg-txt{margin-top:10px;font-size:.93em;color:#454c6c;color:#454c6c !important;}
+.dlg .dlg-list{list-style:none;display:grid;gap:7px;margin-top:10px;}
+.dlg .dlg-list li{position:relative;padding-left:15px;font-size:.92em;color:#454c6c;color:#454c6c !important;}
+.dlg .dlg-list li::before{content:"";position:absolute;left:2px;top:.72em;width:5px;height:5px;border-radius:50%;background:#ff8fb3;}
+.dlg .dlg-list b{color:#2b3150;color:#2b3150 !important;}
+.dlg .dlg-must{display:inline-block;font-size:.72em;font-weight:800;padding:1px 7px;margin-left:4px;border-radius:6px;vertical-align:1px;background:#ffe1ec;color:#d2668a;color:#d2668a !important;}
+
+/* 사진 */
+.dlg .dlg-shot{display:block;margin-top:14px;border-radius:14px;background:#f3f7ff;border:1px solid #e3e9f7;padding:8px;}
+.dlg .dlg-shot img{display:block;width:100%;height:auto;border-radius:10px;}
+.dlg .dlg-shot.narrow{max-width:360px;margin-left:auto;margin-right:auto;}
+.dlg .dlg-cap{display:block;margin-top:7px;font-size:.78em;text-align:center;color:#8a90aa;color:#8a90aa !important;}
+.dlg .dlg-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px;margin-top:4px;}
+
+/* 이렇게 보여요 */
+.dlg .dlg-sec{margin:28px 2px 0;}
+.dlg .dlg-sec-k{font-size:.72em;font-weight:700;letter-spacing:.18em;color:#e58aa6;color:#e58aa6 !important;}
+.dlg .dlg-sec-t{font-size:clamp(18px,5vw,21px);font-weight:800;line-height:1.35;color:#2b3150;color:#2b3150 !important;}
+.dlg .dlg-gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:12px;}
+.dlg .dlg-card{border-radius:18px;padding:12px;background:linear-gradient(160deg,#eef6ff,#fff0f5);border:1px solid #e3e9f7;}
+.dlg .dlg-card img{display:block;width:100%;height:auto;border-radius:12px;}
+.dlg .dlg-card-t{display:block;margin-top:9px;font-weight:800;font-size:.95em;color:#2b3150;color:#2b3150 !important;}
+.dlg .dlg-card-d{display:block;font-size:.85em;color:#5d6790;color:#5d6790 !important;}
+.dlg .dlg-card img + img{margin-top:8px;}
+
+/* 접기 · 펼치기 */
+.dlg details{border-radius:14px;background:#ffffff;border:1px solid #dfe6f5;margin-top:10px;transition:background .3s;}
+.dlg details[open]{background:#f3f7ff;}
+.dlg summary{list-style:none;cursor:pointer;padding:14px 44px 14px 16px;position:relative;font-weight:700;color:#2b3150;color:#2b3150 !important;}
+.dlg summary::-webkit-details-marker{display:none;}
+.dlg summary::after{content:"+";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:1.25em;font-weight:500;color:#8a90aa;color:#8a90aa !important;transition:transform .3s;}
+.dlg details[open] summary::after{transform:translateY(-50%) rotate(45deg);}
+.dlg .dlg-body{padding:0 16px 15px;font-size:.92em;color:#454c6c;color:#454c6c !important;animation:dlgOpen .3s ease;}
+.dlg .dlg-body .dlg-list{margin-top:4px;}
+@keyframes dlgOpen{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:none;}}
+
+</style>
+
+<div class="dlg">
+
+  <div class="dlg-hero dlg-reveal">
+    <span class="dlg-blob a"></span><span class="dlg-blob b"></span>
+    <span class="dlg-kicker"><span class="dlg-dot"></span>GUIDE · v1.1.0</span>
+    <h2 class="dlg-h2">알림 · 전화 설정하기</h2>
+    <p class="dlg-lead">v1.1.0부터 캐릭터의 연락이 휴대폰 알림과 전화로 옵니다. 업데이트한 뒤 아래 순서대로 한 번만 켜 두면 됩니다.</p>
+    <div class="dlg-chips"><span class="dlg-chip">알림 허용</span><span class="dlg-chip">다른 앱 위에 표시</span><span class="dlg-chip">앱을 나가도 연락 받기</span><span class="dlg-chip">배터리 최적화에서 빼기</span></div>
+  </div>
+
+  <div class="dlg-steps">
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">1</span><div><span class="dlg-path">첫 화면 오른쪽 위 톱니바퀴 › 설정 › NOTIFY</span><b class="dlg-step-t">알림 켜기</b></div></div>
+      <ul class="dlg-list">
+        <li><b>메시지 알림</b> · 화면을 안 보고 있을 때 온 연락을 휴대폰 알림으로 받습니다.</li>
+        <li><b>전화 알림</b> · 캐릭터가 전화를 걸면 전화 화면을 띄우고 벨이 울립니다.</li>
+        <li><b>앱을 나가도 연락 받기</b><span class="dlg-must">켜기</span> · 앱을 나가 있거나 화면이 꺼져 있어도 연락과 전화가 옵니다. 알림창에 ‘드림랜드가 깨어 있어요’ 알림이 작게 남습니다.</li>
+        <li><b>알림 권한</b><span class="dlg-must">허용</span> · ‘허용하기’를 누르고 휴대폰이 묻는 창에서 허용합니다. ‘허용됨’이 보이면 됩니다.</li>
+      </ul>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/01-settings-notify.jpg" alt="설정의 NOTIFY 칸"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">2</span><div><span class="dlg-path">설정 › 알림 꾸미기 › DESIGN</span><b class="dlg-step-t">디자인 고르기 · 팝업 허락하기</b></div></div>
+      <p class="dlg-txt">메시지와 전화 화면을 드림랜드 · 카톡풍 · 라인풍 · 아이메시지풍 · 삼성풍 중에서 고릅니다. 옆으로 밀어서 보고, 누르면 바로 바뀝니다.</p>
+      <div class="dlg-two">
+        <span class="dlg-shot"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/02-design-message.jpg" alt="메시지 디자인"><span class="dlg-cap">메시지 디자인</span></span>
+        <span class="dlg-shot"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/03-design-call.jpg" alt="전화 디자인"><span class="dlg-cap">전화 디자인</span></span>
+      </div>
+      <ul class="dlg-list">
+        <li><b>다른 앱 위에 팝업</b><span class="dlg-must">허락</span> · ‘허락하기’를 누르면 ‘다른 앱 위에 표시’ 화면이 열립니다. Dreamland를 허용하고 돌아오면 스위치가 생깁니다. 켜 두면 홈 화면이나 다른 앱을 쓰는 중에도 팝업과 전화 화면이 뜹니다.</li>
+        <li><b>캐릭터마다</b> · 연락이 온 적 있는 캐릭터가 아래에 나옵니다. 누르면 그 캐릭터만 다른 디자인으로 바꿀 수 있습니다.</li>
+      </ul>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/04-popup-switch.jpg" alt="다른 앱 위에 팝업 스위치"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">3</span><div><span class="dlg-path">알림 꾸미기 › MESSAGE</span><b class="dlg-step-t">메시지 알림 꾸미기</b></div></div>
+      <ul class="dlg-list">
+        <li><b>알림 방식</b> · 소리 + 진동 · 소리만 · 진동만 · 조용히. 휴대폰이 무음 · 진동이거나 방해 금지 중이면 휴대폰 설정을 따릅니다.</li>
+        <li><b>알림 소리</b> · 달빛 종 · 별똥별 · 물방울 · 오르골, 또는 ‘내 소리 파일 고르기’. 누르면 들려 줍니다.</li>
+        <li><b>진동 무늬</b> · 톡 · 톡톡 · 길게 · 두근두근.</li>
+        <li><b>잠금 화면에서</b> · 이름과 내용 · 이름만 · 숨기기.</li>
+        <li><b>첫 화면에서는 카드로</b> · 앱 첫 화면을 보고 있을 때는 휴대폰 알림 대신 화면 위에 작은 카드로 보여 줍니다.</li>
+      </ul>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/05-message.jpg" alt="MESSAGE 설정"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">4</span><div><span class="dlg-path">알림 꾸미기 › CALL</span><b class="dlg-step-t">전화 설정</b></div></div>
+      <ul class="dlg-list">
+        <li><b>벨소리</b> · 꿈결 벨 · 고요한 벨, 또는 ‘내 벨소리 파일 고르기’.</li>
+        <li><b>전화 올 때 진동</b> · 벨과 함께 진동합니다.</li>
+        <li><b>다른 앱을 쓸 때도 전화 화면</b> · 켜면 홈 화면이나 다른 앱을 쓰는 중에도 고른 디자인의 전화 화면이 바로 뜹니다. 끄면 위에 전화 알림(거절 · 통화)만 뜨고, 눌러야 전화 화면이 열립니다.</li>
+        <li><b>잠금 화면 위 전화 화면</b><span class="dlg-must">허락</span> · ‘허락하기’를 누르고 Dreamland를 허용하면, 휴대폰이 잠겨 있거나 화면이 꺼져 있어도 전화 화면이 바로 뜹니다.</li>
+      </ul>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/06-call.jpg" alt="CALL 설정"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">5</span><div><span class="dlg-path">알림 꾸미기 › QUIET · BACKGROUND</span><b class="dlg-step-t">조용한 시간 · 배터리</b></div></div>
+      <ul class="dlg-list">
+        <li><b>조용한 시간</b> · 정한 시간에는 소리와 진동 없이 알림만 옵니다.</li>
+        <li><b>배터리 최적화에서 빼기</b><span class="dlg-must">허락</span> · 연락이 늦게 오면 ‘허락하기’를 누르고 ‘제한 없음’으로 바꿉니다. ‘빠짐’이 보이면 됩니다.</li>
+        <li><b>안드로이드 알림 설정</b> · 메시지 · 전화 · 부재중 전화 · 깨어 있음 알림을 하나씩 끄거나 바꿀 수 있습니다.</li>
+      </ul>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/07-quiet-background.jpg" alt="QUIET · BACKGROUND 설정"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">6</span><div><span class="dlg-path">알림 꾸미기 › TRY</span><b class="dlg-step-t">시험해 보기</b></div></div>
+      <p class="dlg-txt">설정이 끝나면 버튼으로 바로 확인합니다. 팝업 시험은 누르고 3초 안에 홈 화면으로 나가면 보입니다. 전화 시험은 3초 뒤에 울리니, 그사이 앱을 나가거나 화면을 꺼 봐도 됩니다.</p>
+      <span class="dlg-shot narrow"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/08-try.jpg" alt="시험해 보기 버튼"></span>
+    </div>
+
+    <div class="dlg-step">
+      <div class="dlg-step-hd"><span class="dlg-num">7</span><div><span class="dlg-path">드림랜드 대화방 ⋯ › 대화 모드 설정 › 먼저 오는 연락</span><b class="dlg-step-t">드림랜드 쪽 설정</b></div></div>
+      <p class="dlg-txt">알림과 전화는 드림랜드가 보내는 것을 받아서 보여 줍니다. 드림랜드에서도 아래가 켜져 있어야 합니다. 원래 드림랜드에 있는 설정입니다.</p>
+      <ul class="dlg-list">
+        <li><b>대화 모드</b> · 대화방을 대화 모드로 둡니다.</li>
+        <li><b>화면을 안 보고 있을 때 온 연락을 브라우저 알림으로 받기</b><span class="dlg-must">켜기</span> · ‘먼저 오는 연락’ 탭 맨 아래에 있습니다. 앱에서는 브라우저 알림 대신 휴대폰 알림과 팝업으로 옵니다.</li>
+        <li><b>내가 조용하면 캐릭터가 먼저 말 걸기</b> · 캐릭터가 먼저 연락하게 합니다. 앱을 나가 있어도 받으려면 그 아래 <b>화면을 안 보고 있을 때도 보내기</b>도 켭니다.</li>
+        <li><b>전화</b> · 전화 설정의 ‘대화 중에 캐릭터가 직접 전화 걸기’를 켜면 캐릭터가 전화를 겁니다.</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="dlg-sec">
+    <p class="dlg-sec-k">PREVIEW</p>
+    <h3 class="dlg-sec-t">이렇게 옵니다</h3>
+    <div class="dlg-gal">
+      <div class="dlg-card"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/09-popup-home.jpg" alt="홈 화면 위 팝업"><span class="dlg-card-t">다른 앱 위 팝업</span><span class="dlg-card-d">홈 화면이나 다른 앱을 쓰는 중에 위에서 내려옵니다. 누르면 드림랜드로, 위로 밀면 닫힙니다.</span></div>
+      <div class="dlg-card"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/10-notification.jpg" alt="메시지 알림"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/11-awake.jpg" alt="깨어 있음 알림"><span class="dlg-card-t">알림창</span><span class="dlg-card-d">캐릭터마다 알림이 하나씩 쌓이고 프로필 사진이 보입니다. 아래 ‘드림랜드가 깨어 있어요’는 앱을 나가도 연락을 받는 동안 보이는 알림입니다.</span></div>
+      <div class="dlg-card"><img src="https://raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/12-call-screen.jpg" alt="전화 화면"><span class="dlg-card-t">걸려 오는 전화</span><span class="dlg-card-d">받기 · 거절 · 문자로를 누를 수 있습니다. 못 받은 전화는 부재중 알림으로 남습니다.</span></div>
+    </div>
+  </div>
+
+  <div class="dlg-sec">
+    <p class="dlg-sec-k">Q&amp;A</p>
+    <h3 class="dlg-sec-t">자주 묻는 질문</h3>
+    <details>
+      <summary>알림이 오지 않습니다</summary>
+      <div class="dlg-body"><ul class="dlg-list">
+        <li>설정의 ‘알림 권한’이 ‘허용됨’인지 확인합니다.</li>
+        <li>드림랜드의 ‘화면을 안 보고 있을 때 온 연락을 브라우저 알림으로 받기’가 켜져 있는지 확인합니다.</li>
+        <li>드림랜드 화면을 보고 있는 동안에는 알림 대신 대화방에 바로 나타납니다.</li>
+      </ul></div>
+    </details>
+    <details>
+      <summary>앱을 나가 있으면 먼저 오는 연락이 오지 않습니다</summary>
+      <div class="dlg-body"><ul class="dlg-list">
+        <li>설정의 ‘앱을 나가도 연락 받기’를 켜고, 드림랜드에 한 번 들어갔다 나옵니다.</li>
+        <li>‘배터리 최적화에서 빼기’를 허락합니다.</li>
+        <li>드림랜드의 ‘화면을 안 보고 있을 때도 보내기’가 켜져 있는지 확인합니다. 연속으로 보낼 수 있는 횟수를 다 쓰면 내가 답할 때까지 쉬어 갑니다.</li>
+      </ul></div>
+    </details>
+    <details>
+      <summary>팝업이 뜨지 않습니다</summary>
+      <div class="dlg-body"><ul class="dlg-list">
+        <li>알림 꾸미기의 ‘다른 앱 위에 팝업’을 허락하고 켭니다.</li>
+        <li>‘앱을 나가도 연락 받기’가 켜져 있어야 뜹니다. 잠금 화면이나 꺼진 화면에서는 팝업 대신 보통 알림으로 옵니다.</li>
+      </ul></div>
+    </details>
+    <details>
+      <summary>브라우저에서 쓰던 API 키가 앱에 없습니다</summary>
+      <div class="dlg-body">API 키는 브라우저마다 따로 저장됩니다. 크롬이나 삼성 인터넷에서 쓰던 키는 앱의 드림랜드 연결 설정에서 한 번 다시 넣어 주세요. 캐릭터 · 페르소나 · 대화는 드림랜드의 ‘서버 폴더 저장’이 켜져 있으면 그대로 함께 보입니다.</div>
+    </details>
+  </div>
+
+</div>

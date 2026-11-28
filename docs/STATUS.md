@@ -335,6 +335,13 @@ JAVA_HOME="C:/Users/천보람/.jdks/jbr-21.0.11" ./gradlew assembleDebug
      - 포트 · 주소 이름이 바뀌면 브라우저 저장 공간이 따로(웹 표준). 서버 폴더 저장이 켜져 있으면 데이터는 다시 불러와짐, 키만 다시
    - 사용자가 앱을 한 번 지웠다가 새로 깜 (권한 다시 허용함)
 
+40. **깡통 글꾸: 업데이트 기록 · 알림 설정 안내 (사진)** (2026-11-28 사용자 요청)
+   - 규칙: `IY-0320/SceneBook-add` 의 `notes/kkangtong-rules.md` (글자 채움색 고정 · class 만 · 인라인 색 · 가로 넘침 · ~합니다체 · 받기 링크는 맨 끝). 색감은 사용자 요청으로 **하늘 · 분홍**
+   - 업데이트 기록: 원본 `notes/post/updates-src.html` → 완성본 `notes/post/kkangtong-updates.html` (class 앞머리 `.dlu`, 최신 상자 + 지난 버전 접기). 새 버전을 올릴 때는 씬북+ 규칙의 "새 버전을 올릴 때" 순서 그대로
+   - 설정 안내: 원본 `notes/post/guide-src.html` → 완성본 `notes/post/kkangtong-guide.html` (`.dlg`, 7단계 + 이렇게 옵니다 + 자주 묻는 질문 + APK 받기). 사진은 `notes/post/img/*.jpg` (S22 에서 시험 버튼으로 찍음, 이름은 "드림랜드", 기본 디자인. 유우지 · 위치 위젯 · 다른 알림은 잘라 냄). 글꾸는 사진을 `raw.githubusercontent.com/IY-0320/webview-app/main/notes/post/img/` 에서 불러오므로 **푸시해야 보임**
+   - 완성본 만들기 · 확인: `node notes/post/inline.cjs <원본> <완성본> <class>`. playwright-core 가 필요 (아무 폴더에서 `npm i playwright-core` 후 그 node_modules 를 NODE_PATH 로). 사용자 폴더 이름이 한글이라 TEMP · TMP 를 `C:pwtmp` 같은 영문 폴더로. 이 컴퓨터의 Chrome 을 씀. SHOT=1 이면 320 · 360 · 414 · 800px 사진도 남김
+   - 사진 찍을 때 사용자의 메시지 디자인(아이메시지풍)을 잠깐 드림랜드로 바꿨다가 되돌려 둠
+
 ## 다음에 할 일 (후보)
 
 - [x] 39번 팝업 확인 (라인풍 띠 · 아이메시지풍 흐린 유리) → v1.1.0
