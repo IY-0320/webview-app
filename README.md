@@ -129,13 +129,19 @@ VERSION_CODE=100 VERSION_NAME=1.1.0 ./gradlew assembleRelease
 ## 파일 구조
 
 ```
-app/src/main/java/com/dreamland/webview/MainActivity.kt   웹뷰 두 장(첫 화면 · 드림랜드), 서버 확인, 터묵스 켜기 · 끄기 · 설치, 설정 저장, 시스템 막대 색
+app/src/main/java/com/dreamland/webview/MainActivity.kt   웹뷰 두 장(첫 화면 · 드림랜드), 서버 확인, 터묵스 켜기 · 끄기 · 설치 · 업데이트, 설정 저장, 시스템 막대 색, 뒤로가기, 들어가기 · 돌아오기 애니메이션
+app/src/main/java/com/dreamland/webview/Saver.kt           드림랜드의 내보내기 · 백업 받기 → 다운로드/Dreamland
+app/src/main/java/com/dreamland/webview/Voice.kt           드림랜드의 글 읽어 주기 · 말로 입력하기 → 안드로이드 음성 엔진
+app/src/main/java/com/dreamland/webview/Picker.kt          드림랜드의 고르기 칸 · 입력칸 추천 목록을 드림랜드 테마로
 app/src/main/assets/start.html                             첫 화면(꿈속으로 · 일어나기), 설정, 처음 질문, 설치 안내
-app/src/main/AndroidManifest.xml                           권한(인터넷 · 터묵스 실행), http 허용, 앱 아이콘 길게 누르기 메뉴
+app/src/main/AndroidManifest.xml                           권한(인터넷 · 터묵스 실행 · 진동 · 마이크), http 허용, 앱 아이콘 길게 누르기 메뉴
+app/src/main/res/values/themes.xml                         앱 테마 (Android 15 edge-to-edge 끄기)
 app/src/main/res/values/strings.xml                        앱 이름, 메뉴 이름
 app/src/main/res/xml/shortcuts.xml                         "설정" 바로가기
 app/src/main/res/drawable · mipmap*                        앱 아이콘 (초승달 + 반짝이)
 app/build.gradle.kts                                       버전, 서명 설정
 .github/workflows/build.yml                                자동 빌드 + 릴리스
 docs/STATUS.md                                             작업 현황 (새 세션에서 먼저 읽기)
+CLAUDE.md                                                  Claude 세션이 처음에 읽는 안내 (STATUS.md 로 안내 + 규칙)
+tools/cdp*.js                                              폰의 WebView 를 개발자 도구로 들여다보는 시험용 스크립트 (디버그 빌드)
 ```
